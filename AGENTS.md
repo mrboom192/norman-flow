@@ -39,3 +39,333 @@ Docs: https://docs.expo.dev/eas/index.md
 - If `ios/` and `android/` directories do not exist, they are generated (Continuous Native Generation). Never create or edit them by hand — configure native behavior in `app.json` and config plugins.
 - Expo Go only includes its bundled native modules. After adding a library with native code, the app needs a development build: `npx expo run:ios|android` locally, or `eas build --profile development`.
 - Prefer recommended Expo modules over third-party libraries, and check your available skills before adding dependencies. Docs: https://docs.expo.dev/versions/latest/index.md
+
+# Norman Flow – Build Instructions (React Native + Expo)
+
+Nov 14, 2026 · @awa
+
+## 1. Agent brief
+
+Build **Norman Flow**, a React Native + Expo app that turns the City of Norman's raw traffic, collision and road-segment files into **8 ranked lists of road segments, one per city ward**. It is the team's entry for the OU MIS Data Analytics Case Competition; City staff will reuse it to rerun the analysis when new data arrives.
+
+**Users:** City of Norman transportation staff and competition judges. Assume they are not programmers.
+
+**Design reference:** the [Norman Flow design canvas](https://claude.ai/artifact/P2LHhV8uYdaQPPiEfRf8yb) has six screens: Welcome, Home, Search (map), Rankings, Chatbot and Menu. Match its layout, copy and colors. Section 6 describes each screen in words.
+
+**Hard rules for the agent**
+
+- The app outputs **ranked lists only**. It never recommends projects, costs or fixes.
+- Never invent or hard-code results. Every rank, V/C ratio and collision count comes from the pipeline in section 4. Show an em dash (—) until a value is computed.
+- The whole analysis must rerun from the raw files with no manual cleaning. Column names and order will change between years, so map columns by aliases (section 3), not by position.
+- Keep the analysis code free of React Native imports so it runs in Node and in unit tests.
+- Rankings must be exportable to Excel (.xlsx). The City already works in macro-enabled Excel.
+- When a rule here is unclear, stop and list it under Open questions (section 8) instead of guessing.
+
+## 2. Tech stack and setup
+
+Use the current stable Expo SDK with TypeScript and Expo Router, targeting iOS, Android and web. Start with `npx create-expo-app@latest norman-flow` and check each library below against that SDK with `npx expo install`, not hand-picked versions.
+
+| Need             | Library                                              | Notes                                                                                   |
+| ---------------- | ---------------------------------------------------- | --------------------------------------------------------------------------------------- |
+| Navigation       | expo-router                                          | Tabs layout: Home, Search, Ranks, Chatbot, Menu; Welcome as a modal                     |
+| Map              | react-native-maps                                    | Polylines for segments, polygons for wards; on web use react-native-svg drawing instead |
+| Drawing          | react-native-svg                                     | Map fallback, icons, logo                                                               |
+| File import      | expo-document-picker, expo-file-system               | Accept .xlsx, .csv, .kml, .kmz                                                          |
+| Excel read/write | xlsx (SheetJS)                                       | Parse inputs, export rankings                                                           |
+| KML / KMZ        | jszip, @xmldom/xmldom, @tmcw/togeojson               | Unzip KMZ, parse to GeoJSON                                                             |
+| Geometry         | @turf/turf                                           | Point-to-line distance, offsets along a line, point in polygon                          |
+| State            | zustand                                              | One store for datasets, results and settings                                            |
+| Storage          | expo-sqlite or AsyncStorage                          | Keep the last imported data and results on the device                                   |
+| Share / export   | expo-sharing                                         | Hand the exported .xlsx to Mail, Files or Drive                                         |
+| Fonts            | @expo-google-fonts/fredoka, @expo-google-fonts/inter | Headings / body                                                                         |
+| Video            | expo-video                                           | "How to use the app" walkthrough                                                        |
+| Tests            | jest (jest-expo preset)                              | Run the analysis on the sample files                                                    |
+
+**Folder structure**
+
+```
+app/
+  _layout.tsx          root stack; shows Welcome on first launch
+  welcome.tsx          modal
+  (tabs)/_layout.tsx   bottom tab bar
+  (tabs)/index.tsx     Home
+  (tabs)/search.tsx    Map + segment details
+  (tabs)/ranks.tsx     Rankings
+  (tabs)/chat.tsx      Chatbot
+  (tabs)/menu.tsx      Files, Resources, Settings, Credits
+src/
+  analysis/            pure TypeScript, no React Native imports
+    parse/             kml.ts, traffic.ts, collisions.ts, columns.ts
+    segments.ts        segment model + ward assignment
+    capacity.ts        ACOG table + lane lookup
+    matchTraffic.ts    traffic count -> segment
+    matchCollisions.ts collision -> segment
+    rank.ts            per-ward rankings
+    pipeline.ts        runs everything, returns Results
+  components/          WardPicker, SegmentRow, StatTile, MapView, TabBar
+  store/               zustand store
+  theme/               colors.ts, type.ts
+  config/              columnAliases.json, capacity.json
+assets/data/           the provided sample files, bundled for first launch
+__tests__/
+```
+
+## 3. Data inputs
+
+The app reads five kinds of input. Bundle the provided files in `assets/data/` as the default dataset, and let users replace any of them from Home or the map.
+
+| File                                                                                      | What it holds                                                                                           | Key fields                                                                                                                                                                                                                                                                                 | Parsing notes                                                                                                                                                                                                              |
+| ----------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Road_Segments.kmz                                                                         | 8 ward polygons; 321 road segments ≥ 1 mi (folder "02 … BLUE") and 12 shorter roads (folder "03 … RED") | Placemark name `ROAD \| i of n \| x mi`; description fields: Road, Segment length (miles), Full road total (miles), Segment within road, Ward majority, Wards touched, Start/End latitude/longitude, GIS lane count, GIS travel direction, ACOG facility category, Classification coverage | Unzip, parse KML. Split the description on `<br>` into `key: value` pairs. Lane count can read `4 (59.4%); Not mapped (40.6%)`: keep the number and the coverage %                                                         |
+| Norman_Traffic_AnalysisOCT22.xlsx                                                         | City traffic counts for FY19, FY21, FY23, FY25, FY26 (about 100 each, 500 total)                        | Raw sheets: road (On / ON_ROAD), From, To, Latitude, Longitude, count. Sheet Traffic_Combined is already normalized: Source_Year, Loc_ID, Road_Name, From, To, Latitude, Longitude, Traffic_Volume, Count_Date, Source_File                                                                | Prefer the Raw_FY sheets so new years work. Counts may be text like `NB 2,009vpd - 55mph / SB 1,889vpd - 61mph (3/31/23)`: sum the vpd numbers for both directions                                                         |
+| Traffic_Project_OU_FALL_PROJECT.xlsx (same tables in the traffic workbook's Raw\_ sheets) | 23,595 collision records, 2016 to 2026                                                                  | Base_Data: Year, AccidentNumber, AccidentDatetime, From_At (At / From), Direction (e.g. DirectionSouth), Distance (feet, zero-padded "0035"), StreetPrefix, StreetName, StreetType, StreetSuffix, XStreet… (cross street), Lat, Lon, CauseCode                                             | Other sheets join on AccidentNumber: NumOfVehicles, Unit_Type, VehConfiguration, Road_Surface, Vehicle_Occupants, OP_Used. vsCODES maps numeric codes to descriptions. Keep every column: do not drop data during cleaning |
+| pdicollisionsq-2016.xlsx                                                                  | 2016 police export, one row per vehicle unit                                                            | CaseNumber, street fields, UnitNumber, UnitType, ContributingFactors                                                                                                                                                                                                                       | Deduplicate on CaseNumber before counting                                                                                                                                                                                  |
+| ACOG capacity guidelines (PDF)                                                            | Daily capacity by facility type                                                                         | See table below                                                                                                                                                                                                                                                                            | Store as `config/capacity.json`, editable without code changes                                                                                                                                                             |
+| odot_aadtc shapefile (EPSG:32124)                                                         | ODOT traffic count stations                                                                             | AADT per station                                                                                                                                                                                                                                                                           | Optional extra source; reproject to WGS84 before use                                                                                                                                                                       |
+
+**ACOG capacities (vehicles per day).** V/C uses the LOS E column.
+
+| Facility type                      | LOS C (2020 plan) | LOS E (2025 plan) |
+| ---------------------------------- | ----------------- | ----------------- |
+| 2-lane arterial                    | 10,000            | 17,100            |
+| 4-lane arterial, undivided         | 22,000            | 34,200            |
+| 4-lane arterial, divided           | 26,000            | 38,000            |
+| 5-lane arterial (center turn lane) | 24,000            | 36,000            |
+| 6-lane arterial, undivided         | 32,000            | 52,300            |
+| 6-lane arterial, divided           | 40,000            | 58,000            |
+| One-way street, per lane           | 6,000             | 11,000            |
+| 4-lane expressway                  | 52,000            | 80,000            |
+| 6-lane expressway                  | 78,000            | 125,000           |
+| 8-lane expressway                  | 104,000           | 165,000           |
+
+**Column aliases.** Keep a `config/columnAliases.json` that maps each field the pipeline needs to the header names seen so far, matched case- and space-insensitively. Example: road = On, ON_ROAD, Road_Name, StreetName; volume = Latest, LATEST_COUNT, NEW COUNT, Traffic_Volume, Column1. If a required field is missing, show a screen that lets the user pick the column, then save that choice to the aliases file.
+
+## 4. Analysis pipeline
+
+The pipeline turns the inputs into three ranked lists per ward: V/C, collisions and combined. Implement it in `src/analysis/pipeline.ts` as one function, `runPipeline(inputs): Results`. It must be deterministic: same files in, same rankings out.
+
+1. **Load segments.** Read every segment from the KMZ. ID = road + segment number (e.g. `W ROBINSON ST#2`). Keep length, start/end points, geometry, lane count, lane coverage % and travel direction. Use folder 02 (≥ 1 mi) for ranking; show folder 03 roads on the map only.
+2. **Assign wards.** Use "Wards touched" from the KMZ. When a new ward file is loaded, recompute it with point-in-polygon / line intersection. A segment that touches two wards goes in **both** wards' lists (City rule).
+3. **Pick capacity.** Map lane count + divided/undivided + one-way to a row of `capacity.json` and take LOS E. Flag segments whose lane coverage is under 100% with "Check aerial view". Let staff override lanes per segment; save overrides and reapply them on every rerun.
+4. **Match traffic counts to segments.** Normalize road names (uppercase; strip periods; NE/NW/SE/SW and E/W prefixes kept as separate tokens; Ave/Avenue → AVE, Rd/Road → RD, St/Street → ST; "48 th" → 48TH; a name in parentheses is an alias, so try both). A count matches a segment when the names agree and the count point is within 150 m of the segment line; nearest segment wins. Make the 150 m a setting.
+5. **Take the highest volume.** If a segment has counts from several years, use the highest one (City rule: 18,000 in 2019 and 20,000 in 2025 → use 20,000). Keep the year it came from.
+6. **Compute V/C.** V/C = highest volume ÷ LOS E capacity, to 2 decimals. Segments with no count get no V/C and drop out of every list.
+7. **Place each collision.** Deduplicate on AccidentNumber / CaseNumber. The road it happened on is StreetName; the reference intersection is StreetName × XStreetName.
+   - `At`: the collision is at the intersection. Assign it to the StreetName segment nearest the intersection.
+   - `From`: start at the intersection, move Distance feet in Direction (North/South/East/West) along the StreetName line, then assign it to the StreetName segment containing that point. Example from the brief: coded at Franklin Rd & 48th Ave NE, 1,000 ft north → it belongs to 48th Ave NE.
+   - Find the intersection from the two roads' segment geometries. Use the record's Lat/Lon only as a fallback: the City thinks those may just be the nearest intersection.
+8. **Drop unmatched collisions.** A collision that lands on no segment, or on a segment with no traffic count, does not count in rankings (City hint). Keep these in an "Unmatched" list with the reason, so staff can review them.
+9. **Rank each ward.** Do this for all 8 wards:
+   - V/C list: segments with a V/C, highest first.
+   - Collision list: segments with a traffic count, most collisions first.
+   - Combined list: only segments with both. Score = V/C rank + collision rank (2nd in collisions + 4th in V/C = 6). Lowest score first.
+   - Ties share a rank (1, 2, 2, 4). Break combined ties by higher V/C.
+10. **Return results.** Return per-ward lists, segment details and diagnostics: counts matched/unmatched, collisions matched/unmatched, segments flagged for lane checks.
+
+**Core types**
+
+```ts
+type Segment = {
+  id: string;
+  road: string;
+  index: number;
+  of: number;
+  lengthMi: number;
+  roadTotalMi: number;
+  wards: number[];
+  wardMajority: number;
+  start: [number, number];
+  end: [number, number]; // [lat, lon]
+  geometry: [number, number][];
+  lanes: number | null;
+  laneCoverage: number;
+  travelDirection: string;
+};
+type SegmentResult = Segment & {
+  maxVolume?: number;
+  volumeYear?: number;
+  capacity?: number;
+  vc?: number;
+  collisions: number;
+  vcRank?: number;
+  collisionRank?: number;
+  combinedScore?: number;
+  combinedRank?: number;
+  flags: string[];
+};
+type Results = {
+  runAt: string;
+  wards: Record<
+    number,
+    {
+      vc: SegmentResult[];
+      collisions: SegmentResult[];
+      combined: SegmentResult[];
+    }
+  >;
+  diagnostics: {
+    countsUnmatched: number;
+    collisionsUnmatched: number;
+    laneChecks: number;
+  };
+};
+```
+
+**Tests.** Run the pipeline on the bundled files in jest. Assert that there are 333 segments and 8 wards; that no ranked segment lacks a volume; and that every combined score equals V/C rank + collision rank. Add one test for the 48th Ave NE example.
+
+## 5. Design system
+
+The app is soft pink and rounded, matching the team's hand-drawn sketches. Put these tokens in `src/theme/` and use nothing hard-coded in screens.
+
+| Token       | Value                  | Use                                          |
+| ----------- | ---------------------- | -------------------------------------------- |
+| background  | #FFF5F8                | Screen background                            |
+| surface     | #FFFFFF                | Cards, tab bar, inputs                       |
+| primary     | #C2255C                | Main buttons, selected ward, rank badges 1–3 |
+| primaryText | #B0174F                | Pink text and icons on white                 |
+| primaryDeep | #8A0F3C                | Text on pink-tint chips                      |
+| primaryTint | #FDE2EA                | Selected tab pill, rank badges 4+            |
+| chipTint    | #FFF0F4                | V/C and collision chips, warnings            |
+| border      | #F3B6CA                | Input and chip outlines                      |
+| divider     | #F6E1E8                | Row separators                               |
+| ink         | #2A1A21                | Main text; dark cards (chatbot, credits)     |
+| muted       | #5E4853                | Secondary text (passes 4.5:1 on white)       |
+| blue        | #2F5FB3 / tint #E8EFFB | "Combined" tags, map segments (#3B5BA9)      |
+
+In dark mode, swap background to ink and keep text contrast at 4.5:1 or more. The app-color setting (Pink, Blue #2F5FB3, Green #2E7D4F, Plum #6B3FA0) replaces `primary` only. Colorblind mode switches map and chart colors to blue/orange, never red/green alone.
+
+**Type.** Headings: Fredoka 600 (screen title 30, card title 19–20). Body: Inter 400/500/600 (body 15, secondary 13, labels 11–12).
+
+**Shape and spacing.** Cards have a 22 px radius and 16–18 px padding; buttons and inputs are pill-shaped (height 44–52). Spacing runs on a 4 px grid with 18 px between cards and 20 px screen side padding. Every touch target is at least 44 × 44.
+
+**Shared components**
+
+- `TabBar`: 84 px tall, white, 5 items with a stroke icon + label. The active item gets a 56 × 30 primaryTint pill.
+- `WardPicker`: 8 equal square buttons labeled 1–8. Selected = primary fill, white text.
+- `SegmentRow`: rank badge (38 px, 12 px radius), segment name, "From → To", value on the right; tap to expand details.
+- `StatTile`: big Fredoka number + small muted label, on a background-colored tile.
+- `Logo`: an original winged-car mark in a rounded square (see canvas).
+- Icons: one stroke icon set (e.g. lucide-react-native) at 2 px stroke; no emoji.
+
+## 6. Screens
+
+There are six screens, all built to the canvas. Every tab screen scrolls above the fixed tab bar. Any value the pipeline has not computed shows as —.
+
+### Welcome (first launch only)
+
+- Logo (96 px), "Welcome to Norman Flow", and one line: "See which Norman road segments rank highest for traffic load and collisions, ward by ward."
+- A "How to use the app" video card with a play button. It opens the walkthrough video full screen.
+- Three numbered steps: pick a ward; tap a segment for details; upload new counts to re-run.
+- "Start the tour" (primary button) runs a coach-mark tour over Home. "Skip for now" asks "Are you sure?", then goes to Home.
+- Save `hasSeenWelcome`. The ? button on Home and "Replay tutorial" in Menu reopen this screen.
+
+### Home
+
+1. Header: logo + "Norman Flow", ? button on the right.
+2. Title "Which roads need attention?" with the subline about the 8 wards.
+3. Search field "Find a street, segment or ward". Typing jumps to Search with the query.
+4. "Choose a ward": WardPicker. The choice is shared with Rankings.
+5. "Top priorities · Ward N": the top 3 of the combined list, each showing V/C rank, collision rank and score. Below them: "Score = V/C rank + collision rank. Only segments with both traffic counts and collisions are ranked." and a button "See all Ward N rankings" that opens Ranks.
+6. Map preview card: a small static map of wards + segments, with a legend and "Open map →" to Search.
+7. "Data in this analysis": four StatTiles (segments, wards, traffic counts and years, collisions and year range), all counted from the loaded data. Show "Last updated \<date>" and an "Add new data & re-rank" button (section 7).
+8. Dark "Ask me about the data" card with two suggested questions that open Chatbot with that question asked.
+
+### Search (map)
+
+- Full-screen map of Norman: ward polygons in light fills, segments as blue lines, and the selected segment in primary with a white outline.
+- Top: search field (street name or ward) + filter button. Active filters show as chips: ward, lane count, has collisions, has traffic count.
+- Map type switch: Map / Satellite / Heat. Heat colors segments by V/C or by collision count, with a legend.
+- Right side buttons: Layers, Reset map, zoom in/out.
+- Tapping a segment opens a bottom sheet with:
+  - road name, "Segment i of n · Ward N" and a "See its rank" button
+  - three tiles: V/C ratio, max traffic count, collisions
+  - segment length, total street length, lanes + direction, wards touched (majority marked), start and end lat/long
+  - a warning chip when lane coverage is under 100%: "Lane count only mapped for X% of this segment — check the aerial view."
+- The Layers sheet ("Files on this map") has a drop/upload zone for CSV, XLSX or KML and a checkbox per loaded file to show or hide it.
+
+### Rankings
+
+- Title "Final Rankings" with an Export button that downloads the current ward's list, or all wards, as .xlsx.
+- WardPicker, then a 3-way switch: Combined / V/C ratio / Collisions.
+- Search within the list, and Sort: Final rank, V/C ratio, Collisions, Traffic volume, Lanes, A–Z.
+- A line "Ward N · \<list> rank" with "\<count> segments ranked".
+- SegmentRows. Badges for ranks 1–3 are solid primary; the rest are tint. The right side shows the score, V/C or crashes depending on the list. Tapping a row expands it: V/C rank + ratio, collision rank + count, highest count + year, LOS E capacity + lanes, start and end points, length, and "Show on map".
+- Show 20 rows at first, then "Show more segments".
+
+### Chatbot
+
+- Header with the bot icon, "Chatbot" and "Answers come from the files in this analysis".
+- FAQ chips: How is V/C calculated? / How do I add a file? / Which file types work? / Why 1-mile segments? Tapping one posts it as a user message and adds the answer.
+- Chat bubbles: bot on the left in white, user on the right in primary. An answer can attach a source file card (e.g. the ACOG PDF) with a download link.
+- Text input + send button above the tab bar.
+- **Answers must work offline and come only from the app's own content**: a local FAQ file plus live lookups on Results ("What's #1 in Ward 3?", "How many collisions on W Robinson St segment 2?"). Use simple keyword and intent matching. If no answer is found, say so and suggest the FAQ. Do not call an outside AI service unless the team decides to (section 8).
+
+### Menu
+
+- **Files**: every loaded file with a type badge (KMZ, XLSX, SHP, PDF), name and one-line summary (e.g. "333 segments · 8 ward boundaries"). Each file can be replaced or removed.
+- **Resources**: ACOG network capacities (opens the PDF), City of Norman interactive map, City Council ward map. The two City maps open normanok.gov in the browser.
+- **Settings**: Dark mode and Colorblind-friendly colors switches, App color swatches, Reset map, Replay tutorial. Advanced (collapsed): match distance in meters, column mapping, lane overrides.
+- **Credits**: "Built by \[team names\] for the MIS Data Analytics Case Competition" and a thank-you to the City of Norman and \[professor\].
+
+## 7. Data updates, export and Excel compatibility
+
+The competition scores how easily City staff can rerun the analysis, so updating data must take a few taps and no cleanup.
+
+**"Add new data & re-rank" flow**
+
+1. Pick one or more files (.xlsx, .csv, .kml, .kmz).
+2. Detect the kind of each file from its headers or KML folders: traffic counts, collisions, segments/wards, or capacity.
+3. Map columns with `columnAliases.json`. Only if a required field is missing, show the column picker and save the choice.
+4. Preview what changed (e.g. "+100 traffic counts (FY27), +2,300 collisions") and ask the user to confirm.
+5. Run the pipeline, save Results with a timestamp, and update "Last updated". Keep the previous run so the user can compare or undo.
+6. Show the diagnostics: counts matched/unmatched, collisions matched/unmatched, segments needing a lane check. Each opens a list.
+
+New traffic years add to the old ones; they do not replace them. The highest-volume rule then picks across all years. A new collisions file replaces or adds to the old one by AccidentNumber, so nothing is double-counted.
+
+**Excel export (expo-sharing)**
+
+- One workbook. It has one sheet per ward with the combined, V/C and collision lists side by side, plus three more sheets:
+  - `All segments`: every field from `SegmentResult`
+  - `Unmatched`: collisions and counts that did not match, with the reason
+  - `Run info`: date, input file names and settings used (match distance, capacity table)
+- Column headers in plain English. Freeze the header row.
+- This lets staff check every rank in Excel and keep using their existing macro workflows.
+
+## 8. Build order, checklist and open questions
+
+Build the analysis first and the screens second. A pretty app with wrong rankings fails the brief.
+
+**Build order**
+
+1. Scaffold the Expo Router project, theme tokens, fonts and the tab bar with five empty screens.
+2. Parsers for KMZ, traffic workbooks and collisions, with column aliases. Unit-test them on the bundled files.
+3. The pipeline (section 4) with its tests passing.
+4. Rankings screen wired to real Results.
+5. Home, then Search (map + bottom sheet + layers).
+6. Import / re-rank flow and Excel export.
+7. Chatbot (offline FAQ + Results lookups), Menu, Welcome and tour.
+8. Dark mode, colorblind mode, app color, accessibility pass.
+
+**Acceptance checklist**
+
+- [ ] Fresh install loads the bundled data and shows 8 ward lists with no manual steps
+- [ ] 333 segments and 8 wards load from Road_Segments.kmz
+- [ ] A segment on a ward boundary appears in both wards' lists
+- [ ] Each segment uses its highest traffic count across all years
+- [ ] Every combined score = V/C rank + collision rank, and only segments with both are in the combined list
+- [ ] Collisions on segments without traffic counts are excluded and listed under Unmatched
+- [ ] A "From" collision is placed on StreetName at the given distance and direction
+- [ ] Renaming or reordering a column in an input file still works (via aliases or the picker)
+- [ ] Adding a new year of counts updates the rankings and "Last updated"
+- [ ] Excel export opens in Excel with one sheet per ward plus All segments, Unmatched and Run info
+- [ ] Every screen matches the canvas, works at 390 px wide, and has 44 px touch targets and 4.5:1 text contrast
+- [ ] No hard-coded results anywhere in the UI
+
+**Open questions for the team** (the agent should use the default shown until answered)
+
+- [ ] Combined list order: the brief says "rank from high to low". Default: lowest score first, since a low score means a high rank on both lists.
+- [ ] Unknown divider on a 4- or 6-lane road. Default: undivided capacity (lower capacity, so higher V/C), with the segment flagged.
+- [ ] "At" collisions sit between two roads' segments. Default: assign them to StreetName.
+- [ ] Should collisions be counted raw or per mile? Default: raw count, as the brief says.
+- [ ] Should the chatbot use an online AI model? Default: offline only, because the City is cautious about outside services.
+- [ ] Ship as a phone app, a web app (Expo web) or both for City staff? Default: both, from one codebase.
