@@ -1,19 +1,19 @@
+import { ArrowUpRight, LucideIcon, Search } from "lucide-react-native";
 import React from "react";
 import {
   Pressable,
   ScrollView,
+  StyleSheet,
   Text,
   TextInput,
-  View,
-  StyleSheet,
-  TextStyle,
-  ViewStyle,
   TextInputProps,
+  TextStyle,
+  View,
+  ViewStyle,
 } from "react-native";
-import { Search, ArrowUpRight, LucideIcon } from "lucide-react-native";
-import Svg, { Path, Rect, Circle } from "react-native-svg";
-import { fonts, useTheme } from "../theme";
+import Svg, { Circle, Path, Rect } from "react-native-svg";
 import { useFlow } from "../store/useFlow";
+import { fonts, useTheme } from "../theme";
 export function T({
   children,
   muted = false,
@@ -36,7 +36,6 @@ export function T({
         {
           fontFamily: heading ? fonts.heading : fonts.body,
           fontSize: size,
-          lineHeight: size * 1.4,
           color: muted ? c.muted : c.ink,
         },
         style,
@@ -62,7 +61,7 @@ export function Screen({
       keyboardShouldPersistTaps="handled"
       style={{ flex: 1, backgroundColor: c.background }}
       contentContainerStyle={[
-        { padding: 20, gap: 18, paddingBottom: 32 },
+        { padding: 20, gap: 16, paddingBottom: 32 },
         style,
       ]}
     >
@@ -86,8 +85,6 @@ export function Card({
           borderRadius: 22,
           padding: 18,
           gap: 14,
-          borderBottomWidth: 1,
-          borderColor: c.border,
         },
         style,
       ]}
@@ -110,7 +107,7 @@ export function Row({
           flexDirection: "row",
           alignItems: "center",
           justifyContent: "space-between",
-          gap: 10,
+          gap: 8,
         },
         style,
       ]}
@@ -331,6 +328,7 @@ export function StatTile({ value, label }: { value: string; label: string }) {
       style={{
         flex: 1,
         minWidth: 90,
+        height: 90,
         backgroundColor: c.background,
         borderRadius: 14,
         padding: 12,

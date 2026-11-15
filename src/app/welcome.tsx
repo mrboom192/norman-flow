@@ -29,7 +29,7 @@ export default function Welcome() {
       <Screen style={{ padding: 24, paddingTop: 48, gap: 24 }}>
         <View style={{ alignItems: "center", gap: 14 }}>
           <Logo size={96} />
-          <T heading size={32} style={{ textAlign: "center", lineHeight: 36 }}>
+          <T heading size={32} style={{ textAlign: "center" }}>
             Welcome to{"\n"}Norman Flow
           </T>
           <T muted size={15} style={{ textAlign: "center", maxWidth: 300 }}>

@@ -202,7 +202,7 @@ export default function Home() {
           positions.current[2] = e.nativeEvent.layout.y;
         }}
       >
-        <Card>
+        <Card style={{ gap: 8 }}>
           <View>
             <T heading size={20}>
               Data in this analysis
