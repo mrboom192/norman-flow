@@ -1,56 +1,36 @@
-# Welcome to your Expo app 👋
+# Norman Flow
 
-This is an [Expo](https://expo.dev) project created with [`create-expo-app`](https://www.npmjs.com/package/create-expo-app).
+Expo SDK 58 / React Native / TypeScript app for ranking Norman road segments within each of eight wards. Screens follow the supplied pink Norman Flow references. Analysis, offline FAQ, imports, local persistence, map inspection and Excel export are implemented.
 
-## Get started
+## Run
 
-1. Install dependencies
+Use Node 22.13+, Node 24.3+ or another version supported by Expo SDK 58. The existing machine's Node 24.2 emits engine warnings.
 
-   ```bash
-   npm install
-   ```
-
-2. Start the app
-
-   ```bash
-   npx expo start
-   ```
-
-In the output, you'll find options to open the app in a
-
-- [development build](https://docs.expo.dev/develop/development-builds/introduction/)
-- [Android emulator](https://docs.expo.dev/workflow/android-studio-emulator/)
-- [iOS simulator](https://docs.expo.dev/workflow/ios-simulator/)
-- [Expo Go](https://expo.dev/go), a limited sandbox for trying out app development with Expo
-
-You can start developing by editing the files inside the **src/app** directory. This project uses [file-based routing](https://docs.expo.dev/router/introduction).
-
-## Get a fresh project
-
-When you're ready, run:
-
-```bash
-npm run reset-project
+```sh
+npm install
+npm run web
+# or
+npm start
 ```
 
-This command will move the starter code to the **example** directory and create a blank **src/app** directory where you can start developing.
+A fresh install opens Welcome. Source datasets are intentionally pending: all analytical values remain empty until files are imported. Home → Add new data & re-rank accepts CSV, XLSX, KML and KMZ. Review the preview, then confirm. Menu offers settings and undo of the last run.
 
-### Other setup steps
+```sh
+npm test
+npm run typecheck
+npm run lint
+npx expo export --platform all
+```
 
-- To set up ESLint for linting, run `npx expo lint`, or follow our guide on ["Using ESLint and Prettier"](https://docs.expo.dev/guides/using-eslint/)
-- If you'd like to set up unit testing, follow our guide on ["Unit Testing with Jest"](https://docs.expo.dev/develop/unit-testing/)
-- Learn more about the TypeScript setup in this template in our guide on ["Using TypeScript"](https://docs.expo.dev/guides/typescript/)
+Native dependencies require an SDK-compatible development build if your installed app binary does not include them. No signing, deployment, or native builds have been performed.
 
-## Learn more
+## Maintain
 
-To learn more about developing your project with Expo, look at the following resources:
+- `AGENTS.md`: full feature behavior, rules, implementation notes and pending release checks.
+- `src/analysis`: React Native-independent parsing, geometry, matching and ranks.
+- `src/config`: header aliases, capacity table and local FAQ.
+- `src/store`: Zustand, SQLite on native, IndexedDB on web.
+- `src/app`: Expo Router screens.
+- `assets/data/README.md`: instructions for adding the approved source assets.
 
-- [Expo documentation](https://docs.expo.dev/): Learn fundamentals, or go into advanced topics with our [guides](https://docs.expo.dev/guides).
-- [Learn Expo tutorial](https://docs.expo.dev/tutorial/introduction/): Follow a step-by-step tutorial where you'll create a project that runs on Android, iOS, and the web.
-
-## Join the community
-
-Join our community of developers creating universal apps.
-
-- [Expo on GitHub](https://github.com/expo/expo): View our open source platform and contribute.
-- [Discord community](https://chat.expo.dev): Chat with Expo users and ask questions.
+The app never recommends projects, prices or fixes. Synthetic unit test records are not displayed in the UI. Real datasets, source PDF, video, optional shapefile and final credits will be connected later.

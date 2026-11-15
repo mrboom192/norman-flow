@@ -1,0 +1,28 @@
+{
+  "road": ["On", "ON_ROAD", "Road_Name", "StreetName", "Road"],
+  "volume": [
+    "Latest",
+    "LATEST_COUNT",
+    "NEW COUNT",
+    "Traffic_Volume",
+    "Column1",
+    "Count",
+    "AADT"
+  ],
+  "latitude": ["Latitude", "Lat"],
+  "longitude": ["Longitude", "Lon", "Lng", "Long"],
+  "year": ["Source_Year", "Year", "FY"],
+  "id": ["AccidentNumber", "CaseNumber", "Loc_ID", "ID"],
+  "fromAt": ["From_At", "At / From", "At_From"],
+  "direction": ["Direction"],
+  "distance": ["Distance", "DistanceFeet"],
+  "prefix": ["StreetPrefix"],
+  "type": ["StreetType"],
+  "suffix": ["StreetSuffix"],
+  "crossRoad": ["XStreetName", "CrossStreet", "Cross Street"],
+  "crossPrefix": ["XStreetPrefix"],
+  "crossType": ["XStreetType"],
+  "crossSuffix": ["XStreetSuffix"],
+  "from": ["From"],
+  "to": ["To"]
+}

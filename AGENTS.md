@@ -369,3 +369,55 @@ Build the analysis first and the screens second. A pretty app with wrong ranking
 - [ ] Should collisions be counted raw or per mile? Default: raw count, as the brief says.
 - [ ] Should the chatbot use an online AI model? Default: offline only, because the City is cautious about outside services.
 - [ ] Ship as a phone app, a web app (Expo web) or both for City staff? Default: both, from one codebase.
+
+## 9. Implemented application behavior (November 14, 2026)
+
+The user explicitly deferred all source datasets, the PDF and walkthrough video while they are being prepared. Ship truthful empty states for this phase. Do not seed the screenshots' 333 / 500 / 23,595 values or invent segment rankings. The supplied six PNGs are the visual reference. The original acceptance checklist above remains a release checklist, not a statement that real-data acceptance has passed.
+
+### Routes and interaction contract
+
+All routes are under `src/app/`, not a second root `app/` folder. Non-route code must stay outside that directory.
+
+| Route | Behavior implemented |
+| --- | --- |
+| `/welcome` | First-launch modal, winged-car SVG logo, three introduction steps, Start the tour and a confirmed Skip action. Welcome-seen state persists. Replay from Home or Menu. The video button explains that the asset is forthcoming. |
+| `/` | Home shows the shared ward picker, top three computed combined rows, map preview, actual dataset totals and import / diagnostics actions. Search forwards the query to Search. Suggested questions open Chatbot. The three-step coach-mark tour scrolls to and highlights ward selection, ranking details and data updates. |
+| `/search` | Search road names or `Ward N`; filter by selected ward, 4+ lanes, traffic or collisions. Select a map line or result-list button to view segment geometry, metrics and lane coverage. Layers controls file visibility without modifying analysis inputs. Reset clears selection, query, filters and zoom. Native uses react-native-maps; web draws imported geometries with SVG. Native Satellite uses the map provider; web explicitly explains that imagery is mobile-only. Heat offers V/C (<1 / ≥1) and collisions (0 / 1+) with a legend. |
+| `/ranks` | Shared ward selection, Combined/V/C/Collisions, road search, six sorts, expandable segment rows, 20-row pagination, Show on map, current-ward or all-ward Excel export. Rank badges come from computed results. Empty states explain missing data. |
+| `/chat` | Local FAQ and keyword matching only. Supports capacity, import formats, segment lengths, ranking rules, top combined segment by ward, and collisions by road plus segment number. Unknown questions get an explicit fallback. Source card identifies the capacity table and clearly states the PDF is pending. No external AI or data upload. |
+| `/menu` | Actual loaded files, replace/import and confirmed removal, resource links, local capacity table, dark mode, colorblind map palette, four accent colors, map reset and replay tutorial. Advanced exposes match distance, custom aliases, verified lane overrides, and editable LOS E capacities. Save reruns analysis. Undo restores the previous files, settings and results. Credits remain generic until names arrive. |
+| `/import` | Select one or more raw files, detect content, resolve missing columns, preview before/after totals, then explicitly Confirm & re-rank. Parsing errors retain the current run. Missing geometry does not prevent saving other input kinds; their unmatched records are visible. |
+| `/diagnostics` | Matched/unmatched totals, record-level unmatched reasons and source names, lane-check list, paginated review. Complete unmatched records are included in export. |
+
+### Analysis and data contracts
+
+- `src/analysis/` is pure TypeScript. `runPipeline(inputs, settings?, runAt?)` is deterministic; its default timestamp is empty, and the UI provides the run timestamp. Ward-specific rank fields live on each ward's result rows, not a shared segment object, because the same segment can have different ranks in different wards.
+- KMZ parsing extracts KML with JSZip and parses XML with xmldom. Description `<br>` fields and KML Data fields are supported. Segment IDs require `ROAD | i of n`. Folder 02 ranks; folder 03 is map-only. Unknown wards are not guessed. Base-file Wards touched is retained; a separately sourced ward layer, or missing ward metadata, triggers geometric assignment.
+- Workbook parsing prefers Raw_FY sheets to Traffic_Combined. Base_Data and recognized collision sheets are detected independently. Directional `vpd` values are summed without adding speed/date numbers. Headers are matched case- and punctuation-insensitively against `src/config/columnAliases.json` plus saved overrides.
+- All original sheet rows are retained in the dataset file. Collision-related tables are indexed by case ID and attached without deleting unknown fields. `vsCODES` is preserved as a raw sheet. The City still needs to validate its final workbook schema and code meanings.
+- Native app bundles cannot rewrite source JSON. User column choices are a persistent runtime overlay on `columnAliases.json`. Promote reviewed aliases back into that file in a later code change if they should become defaults for everyone.
+- New traffic source files append; reimporting an existing filename replaces that source. Collision IDs merge across sources; original raw sheets remain retained. New geometry layers replace previous layers of the same kind. Removal reruns and is undoable.
+- Capacity comes from `src/config/capacity.json`, optionally overridden in Advanced. Unknown 4-/6-lane division uses undivided with a flag. Unmapped lane coverage stays flagged even when lanes are overridden, so the underlying source limitation is visible.
+- Collision placement uses StreetName, geometric reference intersections first and GPS fallback second. From offsets follow connected same-road polylines in the requested initial compass direction, crossing segment endpoints within 10 m. Multiple distinct intersections without a disambiguating GPS location are quarantined. Missing geometry, invalid direction, unmapped offsets, no traffic, and map-only roads have explicit unmatched reasons. Branching roads and final City inputs require real-data review before competition use.
+- V/C is rounded to two decimals before ranking. Rank ties use competition ranks. Combined requires V/C and at least one matched collision; lowest score first, then higher V/C, then stable segment ID. Equal combined scores retain the same rank while V/C determines display order.
+- Persistence uses SQLite key-value storage on native and IndexedDB on web, avoiding localStorage's small quota for collision workbooks. Data remains on the device/browser profile. Keep one previous run. Browser clearing and uninstalling remove local data; Excel export is a portable results copy.
+- `src/services/export.ts` creates eight ward sheets (or the requested ward), with the three lists side by side, plus All segments, Unmatched, and Run info. XML worksheet panes are frozen because SheetJS CE does not expose a reliable writer API for this. Native uses a cache file and expo-sharing; web downloads a Blob. XLSX export does not preserve or embed macros.
+- Theme tokens and fonts live in `src/theme/`. Use Fredoka 600 and Inter 400/500/600, pink tint surfaces, rounded cards and the five fixed tab items. Web content is centered and capped at 480 px; phone layouts use the available width. Never use screenshots as static app screens.
+
+### Verification and remaining release work
+
+Run `npm test`, `npx tsc --noEmit`, and `npx expo lint`. `npx expo export --platform all` checks JS bundles, not native signing or device behavior. The untouched `example/` starter archive is excluded from typecheck/lint; it is not app code.
+
+Tests use explicitly synthetic records and cover: eight ward containers, boundary membership, highest-volume selection, 48th Ave NE northbound offset, reversed and multi-segment geometry, collision deduplication, no-traffic exclusion, shared ties, ward-independent ranks, lane overrides, short-road exclusion, raw-sheet preference, renamed headers, KMZ metadata, and Excel sheets/freeze panes.
+
+Pending release inputs and checks:
+
+- Final raw files and real-data validation (333 segments / 8 ward polygons). Add first-launch bundled import only after these are supplied. See `assets/data/README.md`.
+- Walkthrough video playback and downloadable ACOG PDF, when assets are supplied. Current controls explicitly show their pending status.
+- Optional ODOT shapefile reprojection/import; not part of the active import formats.
+- Final team/professor credits and specific City resource URLs. Current City resource actions open normanok.gov as permitted in the brief.
+- Native device verification, Android map-provider credentials if needed, EAS project/signing and distribution. Existing `ios/` was already present; this implementation does not modify generated native code.
+- Validate full-volume import performance and persistence with the real workbooks; synthetic unit tests are not evidence of real-data correctness.
+- The coach-mark tour measures Home targets and scrolls to each highlight; verify safe-area placement on the final native devices.
+
+Dependency maintenance: SheetJS is installed from the official `cdn.sheetjs.com` 0.20.3 tarball, following its installation documentation, because the npm `xlsx` 0.18.5 release has known parsing vulnerabilities. Do not replace it with the stale registry version. Font imports point at individual weight subpaths so unused font families/weights are not bundled.
