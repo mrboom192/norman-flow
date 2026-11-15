@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { View, ActivityIndicator } from "react-native";
+import { useMemo, useState } from "react";
+import { View, ActivityIndicator, StyleSheet } from "react-native";
 import { router } from "expo-router";
 import { X, Upload, Check } from "lucide-react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -15,13 +15,19 @@ import {
 import { useTheme } from "../theme";
 import { pickFiles, parseFile, Picked } from "../services/files";
 import { MappingError, Aliases } from "../analysis/parse/columns";
-import { combine, DatasetFile, useFlow } from "../store/useFlow";
+import { combine, DatasetFile, flowStorage, useFlow } from "../store/useFlow";
+// Let React commit and paint before starting synchronous workbook parsing or analysis.
+const paintLoadingScreen = () =>
+  new Promise<void>((resolve) =>
+    requestAnimationFrame(() => requestAnimationFrame(() => resolve())),
+  );
 export default function Import() {
   const c = useTheme(),
     state = useFlow();
   const [picked, setPicked] = useState<Picked[]>([]),
     [parsed, setParsed] = useState<DatasetFile[]>([]),
     [busy, setBusy] = useState(false),
+    [progress, setProgress] = useState("Preparing your import…"),
     [error, setError] = useState(""),
     [mapping, setMapping] = useState<MappingError | null>(null),
     [aliases, setAliases] = useState<Aliases>(state.aliases),
@@ -37,55 +43,85 @@ export default function Import() {
     setMapping(null);
     try {
       const next: DatasetFile[] = [];
-      for (const f of files) next.push(await parseFile(f, mappings, force));
+      for (const [index, f] of files.entries()) {
+        const label = `File ${index + 1} of ${files.length} · ${f.name}`;
+        setProgress(`Checking ${label}`);
+        await paintLoadingScreen();
+        next.push(
+          await parseFile(f, mappings, force, (percent) =>
+            setProgress(`Checking ${label} · ${percent}%`),
+          ),
+        );
+      }
+      setPicked([]);
       setParsed(next);
       setStage("preview");
     } catch (e) {
       if (e instanceof MappingError) {
         setMapping(e);
         setStage("mapping");
-      } else setError(e instanceof Error ? e.message : String(e));
+      } else {
+        setError(e instanceof Error ? e.message : String(e));
+        setPicked([]);
+        setParsed([]);
+        setStage("choose");
+      }
     } finally {
       setBusy(false);
     }
   }
   async function choose() {
+    if (busy) return;
     setError("");
+    setBusy(true);
+    setProgress("Choose files to import…");
     try {
-      const files = await pickFiles();
+      const files = await pickFiles(async (name, index, total) => {
+        setProgress(`Reading file ${index} of ${total} · ${name}`);
+        await paintLoadingScreen();
+      });
       if (!files.length) return;
       setPicked(files);
       await parse(files, aliases);
     } catch (e) {
-      setError(String(e));
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setBusy(false);
     }
   }
-  const nextFiles = [
-    ...state.files.filter(
-      (f) =>
-        !parsed.some((p) => p.name === f.name) &&
-        !(
-          parsed.some((p) => p.data.segments.length) && f.data.segments.length
-        ) &&
-        !(parsed.some((p) => p.data.wards.length) && f.data.wards.length),
-    ),
-    ...parsed,
-  ];
-  const previous = combine(state.files),
-    next = combine(nextFiles);
-  function confirm() {
+  const nextFiles = useMemo(
+    () => [
+      ...state.files.filter(
+        (f) =>
+          !parsed.some((p) => p.name === f.name) &&
+          !(
+            parsed.some((p) => p.data.segments.length) && f.data.segments.length
+          ) &&
+          !(parsed.some((p) => p.data.wards.length) && f.data.wards.length),
+      ),
+      ...parsed,
+    ],
+    [state.files, parsed],
+  );
+  const previous = useMemo(() => combine(state.files), [state.files]),
+    next = useMemo(() => combine(nextFiles), [nextFiles]);
+  async function confirm() {
+    if (busy) return;
     setBusy(true);
-    setTimeout(() => {
-      try {
-        state.set({ aliases });
-        state.commit(nextFiles);
-        router.replace("/diagnostics");
-      } catch (e) {
-        setError(String(e));
-      } finally {
-        setBusy(false);
-      }
-    }, 30);
+    setProgress("Matching records and calculating ward rankings…");
+    await paintLoadingScreen();
+    try {
+      state.set({ aliases });
+      state.commit(nextFiles);
+      setProgress("Saving your analysis on this device…");
+      await flowStorage.flush();
+      state.set({ persistenceError: null });
+      router.replace("/diagnostics");
+    } catch (e) {
+      setError(String(e));
+    } finally {
+      setBusy(false);
+    }
   }
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: c.background }}>
@@ -97,7 +133,9 @@ export default function Import() {
           <IconButton
             icon={X}
             label="Close import"
-            onPress={() => router.back()}
+            onPress={() => {
+              if (!busy) router.back();
+            }}
           />
         </Row>
         <T muted>
@@ -125,19 +163,17 @@ export default function Import() {
               wards: KML or KMZ
             </T>
             <Button
-              label={picked.length ? "Choose different files" : "Choose files"}
+              label={
+                picked.length || parsed.length
+                  ? "Choose different files"
+                  : "Choose files"
+              }
               onPress={choose}
               disabled={busy}
             />
           </View>
         </Card>
-        {busy && (
-          <Row style={{ justifyContent: "center" }}>
-            <ActivityIndicator color={c.primary} />
-            <T>Reading and checking your data…</T>
-          </Row>
-        )}
-        {error && (
+        {Boolean(error) && (
           <Card>
             <T
               style={{ color: c.primaryText }}
@@ -283,6 +319,32 @@ export default function Import() {
           </Card>
         )}
       </Screen>
+      {busy && (
+        <View
+          style={[
+            StyleSheet.absoluteFill,
+            {
+              backgroundColor: c.background,
+              padding: 24,
+              alignItems: "center",
+              justifyContent: "center",
+              gap: 20,
+            },
+          ]}
+          accessibilityViewIsModal
+          accessibilityLiveRegion="polite"
+          accessibilityLabel="Import in progress"
+        >
+          <ActivityIndicator size="large" color={c.primary} />
+          <T heading size={26}>
+            Preparing your data
+          </T>
+          <T style={{ textAlign: "center" }}>{progress}</T>
+          <T muted size={13} style={{ textAlign: "center" }}>
+            Keep the app open. Large files can take a little longer.
+          </T>
+        </View>
+      )}
     </SafeAreaView>
   );
 }

@@ -1,15 +1,16 @@
-import { useCallback, useRef, useMemo } from "react";
-import { CoachTour } from "../../components/CoachTour";
-import { View, Pressable, ScrollView } from "react-native";
 import { router } from "expo-router";
-import { CircleHelp, ArrowRight, Upload, Bot } from "lucide-react-native";
+import { ArrowRight, Bot, CircleHelp, Upload } from "lucide-react-native";
+import { useCallback, useMemo, useRef } from "react";
+import { Pressable, ScrollView, View } from "react-native";
+import { CoachTour } from "../../components/CoachTour";
+import { RoadMap } from "../../components/RoadMap";
+import { SegmentRow } from "../../components/SegmentRow";
 import {
   Button,
   Card,
   Chip,
   Empty,
   IconButton,
-  Input,
   Logo,
   Row,
   Screen,
@@ -17,9 +18,7 @@ import {
   T,
   WardPicker,
 } from "../../components/ui";
-import { useFlow, combine } from "../../store/useFlow";
-import { SegmentRow } from "../../components/SegmentRow";
-import { RoadMap } from "../../components/RoadMap";
+import { combine, useFlow } from "../../store/useFlow";
 import { colors, format, useTheme } from "../../theme";
 export default function Home() {
   const c = useTheme(),
@@ -76,7 +75,7 @@ export default function Home() {
           onPress={() => router.push("/welcome")}
         />
       </Row>
-      <View style={{ gap: 4 }}>
+      {/* <View style={{ gap: 4 }}>
         <T heading size={30} style={{ lineHeight: 34, maxWidth: 330 }}>
           Which roads need attention?
         </T>
@@ -91,7 +90,7 @@ export default function Home() {
         onChangeText={(query) =>
           router.push({ pathname: "/search", params: { q: query } })
         }
-      />
+      /> */}
       <View
         ref={(view) => {
           targets.current[0] = view;

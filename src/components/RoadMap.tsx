@@ -13,6 +13,7 @@ import { SegmentResult } from "../analysis/types";
 import { T } from "./ui";
 export type MapProps = {
   preview?: boolean;
+  onSelectSegment?: (id: string) => void;
   segments?: SegmentResult[];
   zoom?: number;
   mode?: string;
@@ -20,6 +21,7 @@ export type MapProps = {
 };
 export function RoadMap({
   preview = false,
+  onSelectSegment,
   segments,
   zoom = 1,
   mode = "Map",
@@ -141,7 +143,12 @@ export function RoadMap({
               stroke={color}
               strokeWidth={selected ? 5 : preview ? 1 : 2.5}
               strokeLinecap="round"
-              onPress={() => !preview && state.set({ selected: s.id })}
+              onPress={() =>
+                !preview &&
+                (onSelectSegment
+                  ? onSelectSegment(s.id)
+                  : state.set({ selected: s.id }))
+              }
             />
           );
         })}

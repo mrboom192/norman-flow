@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { View, Pressable } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { router } from "expo-router";
@@ -11,7 +11,16 @@ export default function Welcome() {
   const c = useTheme(),
     set = useFlow((s) => s.set),
     [sheet, setSheet] = useState("");
+  const pendingFinish = useRef<boolean | null>(null);
   function finish(tour: boolean) {
+    if (sheet) {
+      pendingFinish.current = tour;
+      setSheet("");
+      return;
+    }
+    completeWelcome(tour);
+  }
+  function completeWelcome(tour: boolean) {
     set({ welcomeSeen: true, tour: tour ? 0 : null });
     router.replace("/");
   }
@@ -92,35 +101,39 @@ export default function Welcome() {
         <T muted size={12} style={{ textAlign: "center" }}>
           You can replay the tour anytime from the ? button.
         </T>
-        <Sheet
-          title={sheet === "skip" ? "Are you sure?" : "Walkthrough coming soon"}
-          visible={!!sheet}
-          onClose={() => setSheet("")}
-        >
-          {sheet === "skip" ? (
-            <>
-              <T muted>
-                You can revisit the tutorial from Home or Menu whenever you
-                like.
-              </T>
-              <Button label="Yes, go to Home" onPress={() => finish(false)} />
-              <Button
-                outline
-                label="Take the tour"
-                onPress={() => finish(true)}
-              />
-            </>
-          ) : (
-            <>
-              <T muted>
-                The team is preparing the walkthrough video. You can use the
-                guided tour today.
-              </T>
-              <Button label="Start the tour" onPress={() => finish(true)} />
-            </>
-          )}
-        </Sheet>
       </Screen>
+      <Sheet
+        title={sheet === "skip" ? "Are you sure?" : "Walkthrough coming soon"}
+        visible={!!sheet}
+        onClose={() => setSheet("")}
+        onDismiss={() => {
+          const tour = pendingFinish.current;
+          pendingFinish.current = null;
+          if (tour !== null) completeWelcome(tour);
+        }}
+      >
+        {sheet === "skip" ? (
+          <>
+            <T muted>
+              You can revisit the tutorial from Home or Menu whenever you like.
+            </T>
+            <Button label="Yes, go to Home" onPress={() => finish(false)} />
+            <Button
+              outline
+              label="Take the tour"
+              onPress={() => finish(true)}
+            />
+          </>
+        ) : (
+          <>
+            <T muted>
+              The team is preparing the walkthrough video. You can use the
+              guided tour today.
+            </T>
+            <Button label="Start the tour" onPress={() => finish(true)} />
+          </>
+        )}
+      </Sheet>
     </SafeAreaView>
   );
 }

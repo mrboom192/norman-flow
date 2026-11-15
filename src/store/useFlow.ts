@@ -1,6 +1,7 @@
 import { create } from "zustand";
-import { createJSONStorage, persist } from "zustand/middleware";
+import { persist } from "zustand/middleware";
 import Storage from "./storage";
+import { createFlowStorage } from "./persistence";
 import { Aliases } from "../analysis/parse/columns";
 import {
   emptyInputs,
@@ -53,6 +54,7 @@ export function combine(files: DatasetFile[]): Inputs {
 }
 type State = {
   hydrated: boolean;
+  persistenceError: string | null;
   welcomeSeen: boolean;
   ward: number;
   dark: boolean;
@@ -76,10 +78,29 @@ type State = {
   undo: () => void;
   remove: (name: string) => void;
 };
+type SavedState = Pick<
+  State,
+  | "welcomeSeen"
+  | "ward"
+  | "dark"
+  | "colorblind"
+  | "primary"
+  | "files"
+  | "results"
+  | "previous"
+  | "settings"
+  | "aliases"
+>;
+export const flowStorage = createFlowStorage<SavedState>(Storage, (error) => {
+  useFlow.setState({
+    persistenceError: error instanceof Error ? error.message : String(error),
+  });
+});
 export const useFlow = create<State>()(
   persist(
     (set, get) => ({
       hydrated: false,
+      persistenceError: null,
       welcomeSeen: false,
       ward: 1,
       dark: false,
@@ -136,7 +157,7 @@ export const useFlow = create<State>()(
     }),
     {
       name: "norman-flow-v1",
-      storage: createJSONStorage(() => Storage),
+      storage: flowStorage,
       partialize: (s) => ({
         welcomeSeen: s.welcomeSeen,
         ward: s.ward,

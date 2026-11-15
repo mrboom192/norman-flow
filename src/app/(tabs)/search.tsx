@@ -1,14 +1,14 @@
-import { useState } from "react";
-import { View, ScrollView, Switch, Pressable } from "react-native";
-import { router, useLocalSearchParams } from "expo-router";
+import { router, useFocusEffect, useLocalSearchParams } from "expo-router";
 import {
-  SlidersHorizontal,
   Layers,
-  RotateCcw,
-  Plus,
   Minus,
-  X,
+  Plus,
+  RotateCcw,
+  SlidersHorizontal,
 } from "lucide-react-native";
+import { useCallback, useRef, useState } from "react";
+import { Pressable, StyleSheet, Switch, View } from "react-native";
+import { Sheet } from "../../components/Sheet";
 import { RoadMap } from "../../components/RoadMap";
 import {
   Button,
@@ -21,16 +21,19 @@ import {
   T,
   WardPicker,
 } from "../../components/ui";
-import { Sheet } from "../../components/Sheet";
 import { useFlow } from "../../store/useFlow";
-import { format, fonts, useTheme } from "../../theme";
+import { fonts, format, useTheme } from "../../theme";
+const snapPoints = ["45%", "90%"];
+type MapSheet = "roads" | "filters" | "layers" | "";
+
 export default function SearchScreen() {
   const c = useTheme(),
     state = useFlow(),
     params = useLocalSearchParams<{ q?: string }>();
   const [query, setQuery] = useState(params.q ?? ""),
     [mode, setMode] = useState("Map"),
-    [sheet, setSheet] = useState(""),
+    [sheet, setSheetContent] = useState<Exclude<MapSheet, "">>("roads"),
+    [sheetOpen, setSheetOpen] = useState(false),
     [zoom, setZoom] = useState(1),
     [wardFilter, setWardFilter] = useState(false),
     [lanes, setLanes] = useState(false),
@@ -53,6 +56,22 @@ export default function SearchScreen() {
     setCounts(false);
   }
   const selected = state.results?.segments.find((s) => s.id === state.selected);
+  const pendingNavigation = useRef<(() => void) | null>(null);
+  // Open details for selections from the map or Rankings, only while Search is focused.
+  useFocusEffect(
+    useCallback(() => {
+      if (selected?.id) setSheet("roads");
+      return () => setSheet("");
+    }, [selected?.id]),
+  );
+  function setSheet(next: MapSheet) {
+    if (next) setSheetContent(next);
+    setSheetOpen(Boolean(next));
+  }
+  function navigateAfterClose(action: () => void) {
+    pendingNavigation.current = action;
+    setSheet("");
+  }
   const visibleSources = new Set(
     state.files.filter((f) => f.visible).map((f) => f.name),
   );
@@ -71,8 +90,17 @@ export default function SearchScreen() {
     ) ?? [];
   return (
     <View style={{ flex: 1, backgroundColor: c.background }}>
-      <View style={{ flex: 1, minHeight: 220 }}>
-        <RoadMap segments={matching} zoom={zoom} mode={mode} metric={metric} />
+      <View style={StyleSheet.absoluteFill}>
+        <RoadMap
+          segments={matching}
+          zoom={zoom}
+          mode={mode}
+          metric={metric}
+          onSelectSegment={(id) => {
+            state.set({ selected: id });
+            setSheet("roads");
+          }}
+        />
         <View
           style={{
             position: "absolute",
@@ -81,6 +109,7 @@ export default function SearchScreen() {
             top: 16,
             gap: 10,
           }}
+          pointerEvents="box-none"
         >
           <Row>
             <Input
@@ -102,16 +131,16 @@ export default function SearchScreen() {
                 label={`Ward ${state.ward} ×`}
                 onPress={() => setWardFilter(false)}
               />
-            )}{" "}
+            )}
             {lanes && (
               <Chip label="4+ lanes ×" onPress={() => setLanes(false)} />
-            )}{" "}
+            )}
             {crashes && (
               <Chip
                 label="Has collisions ×"
                 onPress={() => setCrashes(false)}
               />
-            )}{" "}
+            )}
             {counts && (
               <Chip
                 label="Has traffic count ×"
@@ -192,7 +221,7 @@ export default function SearchScreen() {
           <View
             style={{
               position: "absolute",
-              bottom: 12,
+              bottom: 84,
               left: 16,
               padding: 10,
               borderRadius: 12,
@@ -220,151 +249,155 @@ export default function SearchScreen() {
           </View>
         )}
       </View>
-      <View
-        style={{
-          maxHeight: "48%",
-          borderTopLeftRadius: 26,
-          borderTopRightRadius: 26,
-          backgroundColor: c.surface,
-          padding: 20,
-          gap: 10,
-        }}
-      >
-        <View
-          style={{
-            height: 4,
-            width: 40,
-            borderRadius: 4,
-            backgroundColor: c.border,
-            alignSelf: "center",
-          }}
+      <View style={{ position: "absolute", bottom: 20, left: 20, right: 20 }}>
+        <Button
+          label={
+            selected ? `View ${selected.road} details` : "Explore road segments"
+          }
+          onPress={() => setSheet("roads")}
         />
-        <ScrollView contentContainerStyle={{ gap: 12, paddingBottom: 12 }}>
-          {selected ? (
-            <>
-              <Row>
-                <View style={{ flex: 1 }}>
-                  <T heading size={23}>
-                    {selected.road}
-                  </T>
-                  <T muted size={12}>
-                    Segment {selected.index} of {selected.of} · Ward{" "}
-                    {selected.wardMajority || "—"}
-                  </T>
-                </View>
-                <IconButton
-                  icon={X}
-                  label="Close segment"
-                  onPress={() => state.set({ selected: null })}
-                />
-              </Row>
-              <Button
-                label="See its rank"
-                onPress={() => {
-                  if (selected.wards.length)
-                    state.set({ ward: selected.wards[0] });
-                  router.push("/ranks");
-                }}
-              />
-              <Row>
-                <StatTile value={format(selected.vc, 2)} label="V/C ratio" />
-                <StatTile
-                  value={format(selected.maxVolume)}
-                  label="Max traffic count"
-                />
-                <StatTile
-                  value={format(selected.collisions)}
-                  label="Collisions"
-                />
-              </Row>
-              <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 12 }}>
-                {[
-                  ["Segment length", `${selected.lengthMi.toFixed(2)} mi`],
-                  [
-                    "Total street length",
-                    `${selected.roadTotalMi.toFixed(2)} mi`,
-                  ],
-                  [
-                    "Lanes (GIS)",
-                    `${format(selected.lanes)} · ${selected.travelDirection || "—"}`,
-                  ],
-                  [
-                    "Wards touched",
-                    selected.wards
-                      .map(
-                        (w) =>
-                          `${w}${w === selected.wardMajority ? " (majority)" : ""}`,
-                      )
-                      .join(", ") || "—",
-                  ],
-                  ["Start", selected.start.join(", ")],
-                  ["End", selected.end.join(", ")],
-                ].map(([label, value]) => (
-                  <View key={label} style={{ width: "47%" }}>
-                    <T muted size={11}>
-                      {label}
-                    </T>
-                    <T size={12} style={{ fontFamily: fonts.bold }}>
-                      {value}
-                    </T>
-                  </View>
-                ))}
-              </View>
-              {selected.laneCoverage < 100 && (
-                <View
-                  style={{
-                    backgroundColor: c.chipTint,
-                    padding: 10,
-                    borderRadius: 12,
-                  }}
-                >
-                  <T size={12} style={{ color: c.primaryDeep }}>
-                    Lane count only mapped for {selected.laneCoverage}% of this
-                    segment — check the aerial view.
-                  </T>
-                </View>
-              )}
-            </>
-          ) : matching.length ? (
-            <>
-              <T heading size={20}>
-                {matching.length} road segments
-              </T>
-              <T muted size={12}>
-                Tap a line or select a road to inspect its details.
-              </T>
-              {matching.slice(0, 20).map((s) => (
-                <Button
-                  key={s.id}
-                  outline
-                  label={`${s.road} · ${s.index} of ${s.of}`}
-                  onPress={() => state.set({ selected: s.id })}
-                />
-              ))}
-            </>
-          ) : (
-            <Empty
-              title={
-                state.results
-                  ? "No matching roads"
-                  : "Explore your road network"
-              }
-              body={
-                state.results
-                  ? "Try clearing your search or filters."
-                  : "Add a KML or KMZ file to put Norman’s segments and wards on the map."
-              }
-              action={() => router.push("/import")}
-            />
-          )}
-        </ScrollView>
       </View>
       <Sheet
-        title={sheet === "filters" ? "Filter the map" : "Files on this map"}
-        visible={!!sheet}
+        visible={sheetOpen}
+        snapPoints={snapPoints}
+        title={
+          sheet === "filters"
+            ? "Filter the map"
+            : sheet === "layers"
+              ? "Files on this map"
+              : selected
+                ? "Segment details"
+                : "Road segments"
+        }
         onClose={() => setSheet("")}
+        onDismiss={() => {
+          const navigate = pendingNavigation.current;
+          pendingNavigation.current = null;
+          navigate?.();
+        }}
       >
-        {sheet === "filters" ? (
+        {sheet === "roads" ? (
+          <>
+            {selected ? (
+              <>
+                <Row>
+                  <View style={{ flex: 1 }}>
+                    <T heading size={23}>
+                      {selected.road}
+                    </T>
+                    <T muted size={12}>
+                      Segment {selected.index} of {selected.of} · Ward{" "}
+                      {selected.wardMajority || "—"}
+                    </T>
+                  </View>
+                </Row>
+                <Button
+                  label="See its rank"
+                  onPress={() => {
+                    if (selected.wards.length)
+                      state.set({ ward: selected.wards[0] });
+                    navigateAfterClose(() => router.push("/ranks"));
+                  }}
+                />
+                <Row>
+                  <StatTile value={format(selected.vc, 2)} label="V/C ratio" />
+                  <StatTile
+                    value={format(selected.maxVolume)}
+                    label="Max traffic count"
+                  />
+                  <StatTile
+                    value={format(selected.collisions)}
+                    label="Collisions"
+                  />
+                </Row>
+                <View
+                  style={{
+                    flexDirection: "row",
+                    flexWrap: "wrap",
+                    gap: 12,
+                  }}
+                >
+                  {[
+                    ["Segment length", `${selected.lengthMi.toFixed(2)} mi`],
+                    [
+                      "Total street length",
+                      `${selected.roadTotalMi.toFixed(2)} mi`,
+                    ],
+                    [
+                      "Lanes (GIS)",
+                      `${format(selected.lanes)} · ${selected.travelDirection || "—"}`,
+                    ],
+                    [
+                      "Wards touched",
+                      selected.wards
+                        .map(
+                          (w) =>
+                            `${w}${w === selected.wardMajority ? " (majority)" : ""}`,
+                        )
+                        .join(", ") || "—",
+                    ],
+                    ["Start", selected.start.join(", ")],
+                    ["End", selected.end.join(", ")],
+                  ].map(([label, value]) => (
+                    <View key={label} style={{ width: "47%" }}>
+                      <T muted size={11}>
+                        {label}
+                      </T>
+                      <T size={12} style={{ fontFamily: fonts.bold }}>
+                        {value}
+                      </T>
+                    </View>
+                  ))}
+                </View>
+                {selected.laneCoverage < 100 && (
+                  <View
+                    style={{
+                      backgroundColor: c.chipTint,
+                      padding: 10,
+                      borderRadius: 12,
+                    }}
+                  >
+                    <T size={12} style={{ color: c.primaryDeep }}>
+                      Lane count only mapped for {selected.laneCoverage}% of
+                      this segment — check the aerial view.
+                    </T>
+                  </View>
+                )}
+              </>
+            ) : matching.length ? (
+              <>
+                <T heading size={20}>
+                  {matching.length} road segments
+                </T>
+                <T muted size={12}>
+                  Tap a line or select a road to inspect its details.
+                </T>
+                {matching.slice(0, 20).map((s) => (
+                  <Button
+                    key={s.id}
+                    outline
+                    label={`${s.road} · ${s.index} of ${s.of}`}
+                    onPress={() => state.set({ selected: s.id })}
+                  />
+                ))}
+              </>
+            ) : (
+              <Empty
+                title={
+                  state.results
+                    ? "No matching roads"
+                    : "Explore your road network"
+                }
+                body={
+                  state.results
+                    ? "Try clearing your search or filters."
+                    : "Add a KML or KMZ file to put Norman’s segments and wards on the map."
+                }
+                action={() => navigateAfterClose(() => router.push("/import"))}
+              />
+            )}
+          </>
+        ) : sheet === "filters" ? (
           <>
             <WardPicker />
             {[
@@ -391,8 +424,7 @@ export default function SearchScreen() {
               outline
               label="Upload CSV, XLSX, KML or KMZ"
               onPress={() => {
-                setSheet("");
-                router.push("/import");
+                navigateAfterClose(() => router.push("/import"));
               }}
             />
             {state.files.length ? (

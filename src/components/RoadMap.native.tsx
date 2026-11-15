@@ -7,6 +7,7 @@ import { SegmentResult } from "../analysis/types";
 import { T } from "./ui";
 type MapProps = {
   preview?: boolean;
+  onSelectSegment?: (id: string) => void;
   segments?: SegmentResult[];
   zoom?: number;
   mode?: string;
@@ -14,6 +15,7 @@ type MapProps = {
 };
 export function RoadMap({
   preview = false,
+  onSelectSegment,
   segments,
   zoom = 1,
   mode = "Map",
@@ -104,7 +106,11 @@ export function RoadMap({
             }
             strokeWidth={s.id === state.selected ? 6 : 3}
             tappable
-            onPress={() => state.set({ selected: s.id })}
+            onPress={() =>
+              onSelectSegment
+                ? onSelectSegment(s.id)
+                : state.set({ selected: s.id })
+            }
           />
         ))}
       </MapView>
