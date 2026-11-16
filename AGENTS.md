@@ -412,7 +412,7 @@ Tests use explicitly synthetic records and cover: eight ward containers, boundar
 
 Pending release inputs and checks:
 
-- Final raw files and real-data validation (333 segments / 8 ward polygons). Add first-launch bundled import only after these are supplied. See `assets/data/README.md`.
+- Final approved raw files and real-data validation (333 segments / 8 ward polygons). Automatic base-data loading is implemented; put approved files in `assets/data/base/` following its README. The folder remains empty until supplied.
 - Walkthrough video playback and downloadable ACOG PDF, when assets are supplied. Current controls explicitly show their pending status.
 - Optional ODOT shapefile reprojection/import; not part of the active import formats.
 - Final team/professor credits and specific City resource URLs. Current City resource actions open normanok.gov as permitted in the brief.
@@ -421,3 +421,10 @@ Pending release inputs and checks:
 - The coach-mark tour measures Home targets and scrolls to each highlight; verify safe-area placement on the final native devices.
 
 Dependency maintenance: SheetJS is installed from the official `cdn.sheetjs.com` 0.20.3 tarball, following its installation documentation, because the npm `xlsx` 0.18.5 release has known parsing vulnerabilities. Do not replace it with the stale registry version. Font imports point at individual weight subpaths so unused font families/weights are not bundled.
+
+### Base-data startup (November 15, 2026)
+
+- Approved raw files belong directly in `assets/data/base/`; see its README for preferred filenames. Metro automatically generates static asset references and content hashes via `scripts/prepare-base-data.cjs` on start/export/build. Restart Metro after changing files. Do not seed test fixtures into base data.
+- Startup explicitly restores persisted uploads, loads/caches base files through the existing parser, then prepares rankings before showing routes. A themed progress screen reports these stages. File errors are visible and allow continuing with available data.
+- `DatasetFile.source` distinguishes `base` and `uploaded`; legacy files without a marker are uploads. Uploaded segment/ward layers override base geometry, traffic accumulates and collision IDs merge with upload precedence. Base files remain listed separately and are maintained in the build. Removing uploaded geometry falls back to base geometry. With no base data or uploads, use truthful empty states.
+- Base content hashes invalidate parsed caches. Removed bundled files leave the next analysis; changed base inputs rerun the pipeline and clear the obsolete undo snapshot. Unchanged saved analysis is reused.

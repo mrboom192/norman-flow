@@ -1,10 +1,10 @@
-import { useState } from "react";
-import { View, Switch, Pressable, Linking } from "react-native";
 import { router } from "expo-router";
-import { ChevronRight, ChevronDown, Trash2, Upload } from "lucide-react-native";
+import { ChevronDown, ChevronRight, Trash2, Upload } from "lucide-react-native";
+import { useState } from "react";
+import { Linking, Pressable, Switch, View } from "react-native";
+import { Sheet } from "../../components/Sheet";
 import {
   Button,
-  Card,
   Chip,
   IconButton,
   Input,
@@ -12,16 +12,8 @@ import {
   Screen,
   T,
 } from "../../components/ui";
-import { Sheet } from "../../components/Sheet";
 import { useFlow } from "../../store/useFlow";
-import { colors, fonts, useTheme } from "../../theme";
-const expected = [
-  ["KMZ", "Road_Segments.kmz", "Road segments and ward boundaries"],
-  ["XLSX", "Norman_Traffic_Analysis", "City traffic counts"],
-  ["XLSX", "Traffic_Project_OU_FALL", "Collision records and vehicle tables"],
-  ["SHP", "odot_aadtc", "Optional ODOT count stations"],
-  ["PDF", "ACOG capacity guidelines", "Capacity by number of lanes"],
-];
+import { fonts, useTheme } from "../../theme";
 export default function Menu() {
   const c = useTheme(),
     state = useFlow(),
@@ -76,7 +68,7 @@ export default function Menu() {
         <T heading size={30}>
           Menu
         </T>
-        <Card>
+        <View style={{ gap: 14, paddingVertical: 8 }}>
           <Row>
             <T heading size={21}>
               Files
@@ -84,72 +76,77 @@ export default function Menu() {
             <T muted size={12}>
               {state.files.length
                 ? `${state.files.length} files in use`
-                : "Ready for your files"}
+                : "No files yet"}
             </T>
           </Row>
-          {state.files.map((f) => (
-            <View
-              key={f.name}
-              style={{
-                borderTopWidth: 1,
-                borderColor: c.divider,
-                paddingTop: 10,
-                gap: 8,
-              }}
-            >
-              <Row>
-                <FileBadge label={f.type} />
-                <View style={{ flex: 1 }}>
-                  <T size={13} style={{ fontFamily: fonts.bold }}>
-                    {f.name}
+          {(["base", "uploaded"] as const).map((source) => {
+            const files = state.files.filter(
+              (f) => (f.source ?? "uploaded") === source,
+            );
+            return (
+              <View key={source} style={{ gap: 12 }}>
+                <T heading size={18}>
+                  {source === "base" ? "Base files" : "Uploaded files"}
+                </T>
+                <T muted size={12}>
+                  {source === "base"
+                    ? "Included with the app. Uploaded road and ward layers take precedence over base layers."
+                    : "Added by you and saved on this device. Remove a layer to fall back to available base data."}
+                </T>
+                {!files.length && (
+                  <T muted size={13}>
+                    {source === "base"
+                      ? "No base files included in this build."
+                      : "No uploaded files yet. Add your City files to get started."}
                   </T>
-                  <T muted size={11}>
-                    {f.summary}
-                  </T>
-                </View>
-                <IconButton
-                  icon={Trash2}
-                  label={`Remove ${f.name}`}
-                  onPress={() => {
-                    setRemove(f.name);
-                    setSheet("remove");
-                  }}
-                />
-              </Row>
-              <Button
-                outline
-                label="Replace file"
-                onPress={() => router.push("/import")}
-              />
-            </View>
-          ))}
-          {!state.files.length &&
-            expected.map(([type, name, description]) => (
-              <View
-                key={name}
-                style={{
-                  borderTopWidth: 1,
-                  borderColor: c.divider,
-                  paddingTop: 10,
-                }}
-              >
-                <Row>
-                  <FileBadge label={type} />
-                  <View style={{ flex: 1 }}>
-                    <T size={13} style={{ fontFamily: fonts.bold }}>
-                      {name}
-                    </T>
-                    <T muted size={11}>
-                      {description} · awaiting file
-                    </T>
+                )}
+                {files.map((f) => (
+                  <View
+                    key={`${f.source ?? "uploaded"}:${f.name}`}
+                    style={{
+                      borderTopWidth: 1,
+                      borderColor: c.divider,
+                      paddingTop: 10,
+                      gap: 8,
+                    }}
+                  >
+                    <Row>
+                      <FileBadge label={f.type} />
+                      <View style={{ flex: 1 }}>
+                        <T size={13} style={{ fontFamily: fonts.bold }}>
+                          {f.name}
+                        </T>
+                        <T muted size={11}>
+                          {f.summary}
+                        </T>
+                      </View>
+                      {source === "uploaded" && (
+                        <IconButton
+                          icon={Trash2}
+                          label={`Remove ${f.name}`}
+                          onPress={() => {
+                            setRemove(f.name);
+                            setSheet("remove");
+                          }}
+                        />
+                      )}
+                    </Row>
+                    {source === "uploaded" && (
+                      <Button
+                        outline
+                        label="Replace file"
+                        onPress={() => router.push("/import")}
+                      />
+                    )}
                   </View>
-                </Row>
+                ))}
               </View>
-            ))}
+            );
+          })}
           <Button
-            outline
+            outline={Boolean(state.files.length)}
             icon={Upload}
-            label="Add or replace files"
+            label={state.files.length ? "Add or replace files" : "Upload files"}
             onPress={() => router.push("/import")}
           />
           {state.previous && (
@@ -159,8 +156,8 @@ export default function Menu() {
               onPress={() => setSheet("undo")}
             />
           )}
-        </Card>
-        <Card>
+        </View>
+        <View style={{ gap: 14, paddingVertical: 8 }}>
           <View>
             <T heading size={21}>
               Resources
@@ -216,8 +213,8 @@ export default function Menu() {
               </Row>
             </Pressable>
           ))}
-        </Card>
-        <Card>
+        </View>
+        <View style={{ gap: 14, paddingVertical: 8 }}>
           <T heading size={21}>
             Settings
           </T>
@@ -265,10 +262,10 @@ export default function Menu() {
             </T>
             <Row style={{ gap: 2 }}>
               {[
-                ["Pink", colors.primary],
-                ["Blue", "#2F5FB3"],
-                ["Green", "#2E7D4F"],
-                ["Plum", "#6B3FA0"],
+                ["Green", "#1a8f26"],
+                ["Blue", "#1056c7"],
+                ["Plum", "#C96FF2"],
+                ["Pink", "#f6b0e8"],
               ].map(([name, color]) => (
                 <Pressable
                   key={color}
@@ -420,26 +417,24 @@ export default function Menu() {
               <Button label="Save & re-rank" onPress={saveSettings} />
             </View>
           )}
-        </Card>
+        </View>
         {Boolean(status || state.persistenceError) && (
           <T size={12} accessibilityLiveRegion="polite">
             {status || `Could not save device data: ${state.persistenceError}`}
           </T>
         )}
-        <Card style={{ backgroundColor: colors.ink, borderColor: colors.ink }}>
-          <T heading size={21} style={{ color: colors.white }}>
+        <View style={{ gap: 14, paddingVertical: 8 }}>
+          <T heading size={21}>
             Credits
           </T>
-          <T size={14} style={{ color: colors.white }}>
-            Built for the MIS Data Analytics Case Competition.
-          </T>
-          <T size={13} style={{ color: colors.divider }}>
+          <T size={14}>Built for the MIS Data Analytics Case Competition.</T>
+          <T muted size={13}>
             Thank you to the City of Norman Transportation team.
           </T>
-          <T size={11} style={{ color: colors.border }}>
+          <T muted size={11}>
             Team and professor credits will be added before release.
           </T>
-        </Card>
+        </View>
       </Screen>
       <Sheet
         title={

@@ -1,9 +1,18 @@
 import { router } from "expo-router";
-import { ArrowRight, Bot, CircleHelp, Upload } from "lucide-react-native";
+import {
+  Bot,
+  CircleHelp,
+  Map,
+  Route,
+  TrafficCone,
+  TriangleAlert,
+  Upload,
+} from "lucide-react-native";
 import { useCallback, useMemo, useRef } from "react";
-import { Pressable, ScrollView, View } from "react-native";
+import { ScrollView, View } from "react-native";
 import { CoachTour } from "../../components/CoachTour";
-import { RoadMap } from "../../components/RoadMap";
+import { DataStatCard } from "../../components/DataStatCard";
+import { MapPreviewCard } from "../../components/MapPreviewCard";
 import { SegmentRow } from "../../components/SegmentRow";
 import {
   Button,
@@ -14,7 +23,6 @@ import {
   Logo,
   Row,
   Screen,
-  StatTile,
   T,
   WardPicker,
 } from "../../components/ui";
@@ -91,6 +99,86 @@ export default function Home() {
           router.push({ pathname: "/search", params: { q: query } })
         }
       /> */}
+      <MapPreviewCard />
+      <View
+        ref={(view) => {
+          targets.current[2] = view;
+        }}
+        onLayout={(e) => {
+          positions.current[2] = e.nativeEvent.layout.y;
+        }}
+        style={{ gap: 16 }}
+      >
+        <View>
+          <T heading size={20}>
+            Data in this analysis
+          </T>
+          <T muted size={12}>
+            Last updated{" "}
+            {state.results?.runAt
+              ? new Date(state.results.runAt).toLocaleDateString()
+              : "—"}
+          </T>
+        </View>
+        <Row style={{ alignItems: "stretch", gap: 14 }}>
+          <DataStatCard
+            icon={Route}
+            value={data.segments.length ? format(data.segments.length) : "—"}
+            label="Road segments"
+            backgroundColor="#dd5f5f"
+          />
+          <DataStatCard
+            icon={Map}
+            value={
+              data.wards.length
+                ? format(new Set(data.wards.map((w) => w.id)).size)
+                : "—"
+            }
+            label="City wards"
+            backgroundColor="#F5AF5B"
+          />
+        </Row>
+        <Row style={{ alignItems: "stretch", gap: 14 }}>
+          <DataStatCard
+            icon={TrafficCone}
+            value={data.traffic.length ? format(data.traffic.length) : "—"}
+            label="Traffic counts"
+            detail={
+              data.traffic.length
+                ? [...new Set(data.traffic.map((t) => t.year).filter(Boolean))]
+                    .sort()
+                    .join(", ")
+                : undefined
+            }
+            backgroundColor="#f1e17b"
+          />
+          <DataStatCard
+            icon={TriangleAlert}
+            value={
+              data.collisions.length ? format(data.collisions.length) : "—"
+            }
+            label="Collision records"
+            detail={
+              data.collisions.length
+                ? yearRange(data.collisions.map((record) => record.year))
+                : undefined
+            }
+            backgroundColor="#64d87d"
+          />
+        </Row>
+        <Button
+          icon={Upload}
+          label="Add new data & re-rank"
+          onPress={importData}
+        />
+        {state.results && (
+          <Button
+            outline
+            label="Review analysis diagnostics"
+            onPress={() => router.push("/diagnostics")}
+          />
+        )}
+      </View>
       <View
         ref={(view) => {
           targets.current[0] = view;
@@ -151,107 +239,6 @@ export default function Home() {
             label={`See all Ward ${state.ward} rankings`}
             onPress={() => router.push("/ranks")}
           />
-        </Card>
-      </View>
-      <Card>
-        <Row>
-          <T heading size={20}>
-            Map
-          </T>
-          <Pressable
-            accessibilityRole="button"
-            onPress={() => router.push("/search")}
-            style={{ minHeight: 44, justifyContent: "center" }}
-          >
-            <Row>
-              <T size={14} style={{ color: c.primaryText }}>
-                Open map
-              </T>
-              <ArrowRight size={16} color={c.primaryText} />
-            </Row>
-          </Pressable>
-        </Row>
-        <View style={{ height: 220, borderRadius: 14, overflow: "hidden" }}>
-          <RoadMap preview />
-        </View>
-        <Row style={{ justifyContent: "flex-start" }}>
-          <View style={{ height: 3, width: 18, backgroundColor: c.mapBlue }} />
-          <T muted size={11}>
-            Road segment (1 mi+)
-          </T>
-          <View
-            style={{
-              width: 13,
-              height: 13,
-              borderRadius: 3,
-              backgroundColor: c.primaryTint,
-              borderWidth: 1,
-              borderColor: c.border,
-            }}
-          />
-          <T muted size={11}>
-            Ward
-          </T>
-        </Row>
-      </Card>
-      <View
-        ref={(view) => {
-          targets.current[2] = view;
-        }}
-        onLayout={(e) => {
-          positions.current[2] = e.nativeEvent.layout.y;
-        }}
-      >
-        <Card style={{ gap: 8 }}>
-          <View>
-            <T heading size={20}>
-              Data in this analysis
-            </T>
-            <T muted size={12}>
-              Last updated{" "}
-              {state.results?.runAt
-                ? new Date(state.results.runAt).toLocaleDateString()
-                : "—"}
-            </T>
-          </View>
-          <Row>
-            <StatTile
-              value={data.segments.length ? format(data.segments.length) : "—"}
-              label="road segments"
-            />
-            <StatTile
-              value={
-                data.wards.length
-                  ? format(new Set(data.wards.map((w) => w.id)).size)
-                  : "—"
-              }
-              label="city wards"
-            />
-          </Row>
-          <Row>
-            <StatTile
-              value={data.traffic.length ? format(data.traffic.length) : "—"}
-              label={`traffic counts${data.traffic.length ? " · " + [...new Set(data.traffic.map((t) => t.year).filter(Boolean))].sort().join(", ") : ""}`}
-            />
-            <StatTile
-              value={
-                data.collisions.length ? format(data.collisions.length) : "—"
-              }
-              label={`collision records${data.collisions.length ? " · " + yearRange(data.collisions.map((record) => record.year)) : ""}`}
-            />
-          </Row>
-          <Button
-            icon={Upload}
-            label="Add new data & re-rank"
-            onPress={importData}
-          />
-          {state.results && (
-            <Button
-              outline
-              label="Review analysis diagnostics"
-              onPress={() => router.push("/diagnostics")}
-            />
-          )}
         </Card>
       </View>
       <Card style={{ backgroundColor: colors.ink, borderColor: colors.ink }}>

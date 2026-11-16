@@ -5,8 +5,11 @@ import { Inter_400Regular } from "@expo-google-fonts/inter/400Regular";
 import { Inter_500Medium } from "@expo-google-fonts/inter/500Medium";
 import { Inter_600SemiBold } from "@expo-google-fonts/inter/600SemiBold";
 import { StatusBar } from "expo-status-bar";
-import { SafeAreaProvider } from "react-native-safe-area-context";
-import { ActivityIndicator, View, Platform } from "react-native";
+import { SafeAreaProvider, SafeAreaView } from "react-native-safe-area-context";
+import { View, Platform } from "react-native";
+import { useEffect, useState } from "react";
+import { StartupScreen } from "../components/StartupScreen";
+import { initializeData, StartupProgress } from "../services/startup";
 import { useFlow } from "../store/useFlow";
 import { useTheme } from "../theme";
 export default function Layout() {
@@ -18,17 +21,43 @@ export default function Layout() {
   });
   const c = useTheme(),
     dark = useFlow((s) => s.dark);
-  if (!fonts && !error)
+  const [progress, setProgress] = useState<StartupProgress>({
+    step: 0,
+    message: "Opening your workspace…",
+  });
+  const [ready, setReady] = useState(false);
+  const [issues, setIssues] = useState<string[] | null>(null);
+  useEffect(() => {
+    initializeData(setProgress)
+      .then((warnings) => {
+        if (warnings.length) setIssues(warnings);
+        else setReady(true);
+      })
+      .catch((failure) =>
+        setIssues([`Could not finish preparing the data: ${String(failure)}`]),
+      );
+  }, []);
+  const fontsReady = Boolean(fonts || error);
+  if (!fontsReady || !ready)
     return (
-      <View
-        style={{
-          flex: 1,
-          backgroundColor: c.background,
-          justifyContent: "center",
-        }}
-      >
-        <ActivityIndicator color={c.primary} />
-      </View>
+      <SafeAreaProvider>
+        <SafeAreaView
+          style={{
+            flex: 1,
+            width: "100%",
+            maxWidth: Platform.OS === "web" ? 480 : undefined,
+            alignSelf: "center",
+          }}
+        >
+          <StatusBar style={dark ? "light" : "dark"} />
+          <StartupScreen
+            progress={progress}
+            fontsReady={fontsReady}
+            issues={issues}
+            onContinue={() => setReady(true)}
+          />
+        </SafeAreaView>
+      </SafeAreaProvider>
     );
   return (
     <SafeAreaProvider>
@@ -49,6 +78,7 @@ export default function Layout() {
             }}
           >
             <Stack.Screen name="(tabs)" />
+            <Stack.Screen name="search" />
             <Stack.Screen name="welcome" options={{ presentation: "modal" }} />
             <Stack.Screen name="import" options={{ presentation: "modal" }} />
             <Stack.Screen

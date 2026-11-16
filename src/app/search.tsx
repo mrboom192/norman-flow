@@ -1,15 +1,17 @@
 import { router, useFocusEffect, useLocalSearchParams } from "expo-router";
 import {
+  ArrowLeft,
   Layers,
   Minus,
   Plus,
   RotateCcw,
   SlidersHorizontal,
 } from "lucide-react-native";
-import { useCallback, useRef, useState } from "react";
-import { Pressable, StyleSheet, Switch, View } from "react-native";
-import { Sheet } from "../../components/Sheet";
-import { RoadMap } from "../../components/RoadMap";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { BackHandler, Pressable, StyleSheet, Switch, View } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { Sheet } from "../components/Sheet";
+import { RoadMap } from "../components/RoadMap";
 import {
   Button,
   Chip,
@@ -20,16 +22,17 @@ import {
   StatTile,
   T,
   WardPicker,
-} from "../../components/ui";
-import { useFlow } from "../../store/useFlow";
-import { fonts, format, useTheme } from "../../theme";
+} from "../components/ui";
+import { useFlow, visibleGeometry } from "../store/useFlow";
+import { fonts, format, useTheme } from "../theme";
 const snapPoints = ["45%", "90%"];
 type MapSheet = "roads" | "filters" | "layers" | "";
 
 export default function SearchScreen() {
   const c = useTheme(),
+    insets = useSafeAreaInsets(),
     state = useFlow(),
-    params = useLocalSearchParams<{ q?: string }>();
+    params = useLocalSearchParams<{ q?: string; panel?: string }>();
   const [query, setQuery] = useState(params.q ?? ""),
     [mode, setMode] = useState("Map"),
     [sheet, setSheetContent] = useState<Exclude<MapSheet, "">>("roads"),
@@ -64,6 +67,36 @@ export default function SearchScreen() {
       return () => setSheet("");
     }, [selected?.id]),
   );
+  useEffect(() => {
+    if (params.panel === "layers") {
+      // Present the sheet after the map screen has mounted and received focus.
+      const frame = requestAnimationFrame(() => {
+        setSheetContent("layers");
+        setSheetOpen(true);
+        router.setParams({ panel: undefined });
+      });
+      return () => cancelAnimationFrame(frame);
+    }
+  }, [params.panel]);
+  useFocusEffect(
+    useCallback(() => {
+      const subscription = BackHandler.addEventListener(
+        "hardwareBackPress",
+        () => {
+          if (sheetOpen) {
+            setSheetOpen(false);
+            return true;
+          }
+          if (!router.canGoBack()) {
+            router.replace("/");
+            return true;
+          }
+          return false;
+        },
+      );
+      return () => subscription.remove();
+    }, [sheetOpen]),
+  );
   function setSheet(next: MapSheet) {
     if (next) setSheetContent(next);
     setSheetOpen(Boolean(next));
@@ -72,13 +105,13 @@ export default function SearchScreen() {
     pendingNavigation.current = action;
     setSheet("");
   }
-  const visibleSources = new Set(
-    state.files.filter((f) => f.visible).map((f) => f.name),
+  const visibleSegments = new Set(
+    visibleGeometry(state.files).segments.map((s) => s.id),
   );
   const matching =
     state.results?.segments.filter(
       (s) =>
-        visibleSources.has(s.source) &&
+        visibleSegments.has(s.id) &&
         (!wardFilter || s.wards.includes(state.ward)) &&
         (!lanes || (s.lanes ?? 0) >= 4) &&
         (!crashes || s.collisions > 0) &&
@@ -104,14 +137,22 @@ export default function SearchScreen() {
         <View
           style={{
             position: "absolute",
-            left: 16,
-            right: 16,
-            top: 16,
+            left: Math.max(16, insets.left),
+            right: Math.max(16, insets.right),
+            top: insets.top + 16,
             gap: 10,
           }}
           pointerEvents="box-none"
         >
           <Row>
+            <IconButton
+              icon={ArrowLeft}
+              label="Back from map"
+              onPress={() => {
+                if (router.canGoBack()) router.back();
+                else router.replace("/");
+              }}
+            />
             <Input
               search
               value={query}
@@ -221,7 +262,7 @@ export default function SearchScreen() {
           <View
             style={{
               position: "absolute",
-              bottom: 84,
+              bottom: insets.bottom + 84,
               left: 16,
               padding: 10,
               borderRadius: 12,
@@ -249,7 +290,14 @@ export default function SearchScreen() {
           </View>
         )}
       </View>
-      <View style={{ position: "absolute", bottom: 20, left: 20, right: 20 }}>
+      <View
+        style={{
+          position: "absolute",
+          bottom: insets.bottom + 20,
+          left: Math.max(20, insets.left),
+          right: Math.max(20, insets.right),
+        }}
+      >
         <Button
           label={
             selected ? `View ${selected.road} details` : "Explore road segments"
@@ -296,7 +344,7 @@ export default function SearchScreen() {
                   onPress={() => {
                     if (selected.wards.length)
                       state.set({ ward: selected.wards[0] });
-                    navigateAfterClose(() => router.push("/ranks"));
+                    navigateAfterClose(() => router.dismissTo("/ranks"));
                   }}
                 />
                 <Row>
@@ -429,7 +477,7 @@ export default function SearchScreen() {
             />
             {state.files.length ? (
               state.files.map((f) => (
-                <Row key={f.name}>
+                <Row key={`${f.source ?? "uploaded"}:${f.name}`}>
                   <View style={{ flex: 1 }}>
                     <T size={13}>{f.name}</T>
                     <T muted size={11}>
@@ -442,7 +490,7 @@ export default function SearchScreen() {
                     onValueChange={(visible) =>
                       state.set({
                         files: state.files.map((x) =>
-                          x.name === f.name ? { ...x, visible } : x,
+                          x === f ? { ...x, visible } : x,
                         ),
                       })
                     }

@@ -8,7 +8,7 @@ import Svg, {
   Rect,
 } from "react-native-svg";
 import { useTheme } from "../theme";
-import { useFlow } from "../store/useFlow";
+import { useFlow, visibleGeometry } from "../store/useFlow";
 import { SegmentResult } from "../analysis/types";
 import { T } from "./ui";
 export type MapProps = {
@@ -29,12 +29,7 @@ export function RoadMap({
 }: MapProps) {
   const c = useTheme(),
     state = useFlow(),
-    data = {
-      segments: state.files
-        .filter((f) => f.visible)
-        .flatMap((f) => f.data.segments),
-      wards: state.files.filter((f) => f.visible).flatMap((f) => f.data.wards),
-    },
+    data = visibleGeometry(state.files),
     roads =
       segments ??
       state.results?.segments.filter((s) =>

@@ -12,6 +12,9 @@ import {
 } from "../analysis/types";
 import { defaultSettings, runPipeline } from "../analysis/pipeline";
 export type DatasetFile = {
+  /** Older persisted files without a source are user uploads. */
+  source?: "base" | "uploaded";
+  baseVersion?: string;
   name: string;
   type: string;
   summary: string;
@@ -19,11 +22,30 @@ export type DatasetFile = {
   rawSheets?: Record<string, RawRow[]>;
   visible: boolean;
 };
+export function visibleGeometry(files: DatasetFile[]) {
+  function layer<K extends "segments" | "wards">(key: K): Inputs[K] {
+    const overridden = files.some(
+      (f) => f.source !== "base" && f.data[key].length,
+    );
+    return files
+      .filter((f) => f.visible && !(overridden && f.source === "base"))
+      .flatMap((f) => f.data[key] as unknown[]) as Inputs[K];
+  }
+  return { segments: layer("segments"), wards: layer("wards") };
+}
 export function combine(files: DatasetFile[]): Inputs {
   const all = emptyInputs();
-  files.forEach((f) => {
+  const uploads = files.filter((f) => f.source !== "base");
+  const hasSegments = uploads.some((f) => f.data.segments.length);
+  const hasWards = uploads.some((f) => f.data.wards.length);
+  // Base records come first so uploaded collision IDs take precedence.
+  [...files.filter((f) => f.source === "base"), ...uploads].forEach((f) => {
     for (const key of ["segments", "wards", "traffic", "collisions"] as const)
-      for (const row of f.data[key]) (all[key] as unknown[]).push(row);
+      if (!(
+        f.source === "base" &&
+        ((key === "segments" && hasSegments) || (key === "wards" && hasWards))
+      ))
+        for (const row of f.data[key]) (all[key] as unknown[]).push(row);
   });
   all.segments = [...new Map(all.segments.map((s) => [s.id, s])).values()];
   all.traffic = [
@@ -153,10 +175,13 @@ export const useFlow = create<State>()(
         if (prev) set({ ...prev, previous: null });
       },
       remove: (name) =>
-        get().commit(get().files.filter((f) => f.name !== name)),
+        get().commit(
+          get().files.filter((f) => f.source === "base" || f.name !== name),
+        ),
     }),
     {
       name: "norman-flow-v1",
+      skipHydration: true,
       storage: flowStorage,
       partialize: (s) => ({
         welcomeSeen: s.welcomeSeen,
@@ -170,7 +195,12 @@ export const useFlow = create<State>()(
         settings: s.settings,
         aliases: s.aliases,
       }),
-      onRehydrateStorage: () => (state) => state?.set({ hydrated: true }),
+      onRehydrateStorage: () => (_state, error) => {
+        useFlow.setState({
+          hydrated: true,
+          ...(error ? { persistenceError: String(error) } : {}),
+        });
+      },
     },
   ),
 );

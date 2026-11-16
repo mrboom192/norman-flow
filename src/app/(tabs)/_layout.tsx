@@ -1,12 +1,6 @@
 import { Tabs, router } from "expo-router";
 import { View, Pressable } from "react-native";
-import {
-  Home,
-  Search,
-  ChartNoAxesColumn,
-  Bot,
-  Menu,
-} from "lucide-react-native";
+import { Home, ChartNoAxesColumn, Bot, Menu } from "lucide-react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useEffect } from "react";
 import { useTheme } from "../../theme";
@@ -14,7 +8,6 @@ import { T } from "../../components/ui";
 import { useFlow } from "../../store/useFlow";
 const items = [
   { name: "index", label: "Home", icon: Home },
-  { name: "search", label: "Search", icon: Search },
   { name: "ranks", label: "Ranks", icon: ChartNoAxesColumn },
   { name: "chat", label: "Chatbot", icon: Bot },
   { name: "menu", label: "Menu", icon: Menu },

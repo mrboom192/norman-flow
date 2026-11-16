@@ -149,18 +149,18 @@ export function Button({
           gap: 8,
           backgroundColor: outline ? "transparent" : c.primary,
           borderWidth: 1,
-          borderColor: c.primary,
+          borderColor: outline ? c.border : "transparent",
           opacity: disabled ? 0.45 : pressed ? 0.75 : 1,
         },
         style,
       ]}
     >
-      {Icon && <Icon size={17} color={outline ? c.primaryText : c.white} />}
+      {Icon && <Icon size={17} color={outline ? c.ink : c.white} />}
       <T
         size={14}
         style={{
           fontFamily: fonts.bold,
-          color: outline ? c.primaryText : c.white,
+          color: outline ? c.ink : c.white,
           textAlign: "center",
         }}
       >
@@ -200,7 +200,7 @@ export function IconButton({
         style,
       ]}
     >
-      <Icon size={20} color={c.primaryText} strokeWidth={2} />
+      <Icon size={20} color={c.ink} strokeWidth={2} />
     </Pressable>
   );
 }
@@ -278,7 +278,7 @@ export function Chip({
       <T
         size={12}
         style={{
-          color: active ? c.white : blue ? c.blue : c.primaryText,
+          color: active ? c.white : c.muted,
           fontFamily: fonts.medium,
         }}
       >
@@ -309,7 +309,7 @@ export function WardPicker() {
             alignItems: "center",
             justifyContent: "center",
             borderWidth: 1,
-            borderColor: ward === n ? c.primary : c.border,
+            borderColor: ward === n ? "transparent" : c.border,
             backgroundColor: ward === n ? c.primary : c.surface,
           }}
         >

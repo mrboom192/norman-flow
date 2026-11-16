@@ -157,7 +157,7 @@ function Tag({ label, blue = false }: { label: string; blue?: boolean }) {
         backgroundColor: blue ? c.blueTint : c.chipTint,
       }}
     >
-      <T size={11} style={{ color: blue ? c.blue : c.primaryDeep }}>
+      <T size={11} style={{ color: c.primaryDeep }}>
         {label}
       </T>
     </View>

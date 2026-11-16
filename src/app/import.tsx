@@ -93,11 +93,13 @@ export default function Import() {
     () => [
       ...state.files.filter(
         (f) =>
-          !parsed.some((p) => p.name === f.name) &&
-          !(
-            parsed.some((p) => p.data.segments.length) && f.data.segments.length
-          ) &&
-          !(parsed.some((p) => p.data.wards.length) && f.data.wards.length),
+          f.source === "base" ||
+          (!parsed.some((p) => p.name === f.name) &&
+            !(
+              parsed.some((p) => p.data.segments.length) &&
+              f.data.segments.length
+            ) &&
+            !(parsed.some((p) => p.data.wards.length) && f.data.wards.length)),
       ),
       ...parsed,
     ],
@@ -313,8 +315,9 @@ export default function Import() {
               lists.
             </T>
             <T muted size={12}>
-              No sample files are bundled yet. Add the City’s final datasets
-              here when they are ready.
+              Base files are included when available. Your uploaded road and
+              ward layers take precedence; new traffic years add to the
+              analysis.
             </T>
           </Card>
         )}

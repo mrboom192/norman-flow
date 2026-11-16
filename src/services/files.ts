@@ -67,6 +67,7 @@ export async function parseFile(
     .filter(Boolean)
     .join(" · ");
   return {
+    source: "uploaded",
     name: file.name,
     type: file.name.split(".").pop()!.toUpperCase(),
     data,

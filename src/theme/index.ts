@@ -1,26 +1,29 @@
 import { useFlow } from "../store/useFlow";
 export const colors = {
-  background: "#FFF5F8",
+  background: "#FFFFFF",
   surface: "#FFFFFF",
   primary: "#C2255C",
   primaryText: "#B0174F",
-  primaryDeep: "#8A0F3C",
-  primaryTint: "#FDE2EA",
-  chipTint: "#FFF0F4",
-  border: "#F3B6CA",
-  divider: "#F6E1E8",
-  ink: "#2A1A21",
-  muted: "#5E4853",
+  primaryDeep: "#404040",
+  primaryTint: "#F0F0F0",
+  chipTint: "#F5F5F5",
+  border: "#E5E5E5",
+  divider: "#EBEBEB",
+  ink: "#171717",
+  muted: "#626262",
   blue: "#2F5FB3",
-  blueTint: "#E8EFFB",
+  blueTint: "#F0F0F0",
   mapBlue: "#3B5BA9",
   orange: "#AD5900",
-  mapBackground: "#F8F4F7",
-  wardFills: ["#FCE1E9", "#FDF0D9", "#E4F0EF", "#ECE7FC"],
-  darkSurface: "#392630",
-  darkMuted: "#DFC4D0",
-  darkTint: "#523142",
+  mapBackground: "#F5F5F5",
+  wardFills: ["#E5E5E5", "#F0F0F0", "#D4D4D4", "#FAFAFA"],
+  darkSurface: "#202020",
+  darkMuted: "#B3B3B3",
+  darkTint: "#2A2A2A",
   white: "#FFFFFF",
+  dataSurface: "#F5F5F5",
+  dataInk: "#171717",
+  dataMuted: "#1C1C1C",
 };
 export const fonts = {
   heading: "Fredoka_600SemiBold",
@@ -35,24 +38,36 @@ export function useTheme() {
   return {
     ...colors,
     primary,
+    primaryText: primary,
     ...(dark
       ? {
           background: colors.ink,
           surface: colors.darkSurface,
           ink: colors.white,
           muted: colors.darkMuted,
-          primaryText: "#FFB0CF",
-          primaryDeep: "#FFD4E4",
+          primaryText: lightenAccent(primary),
+          primaryDeep: "#D4D4D4",
           primaryTint: colors.darkTint,
           chipTint: colors.darkTint,
-          divider: "#634453",
-          border: "#8F6075",
-          blueTint: "#24395C",
+          divider: "#2E2E2E",
+          border: "#383838",
+          blueTint: colors.darkTint,
           blue: "#AAC8FF",
-          mapBackground: "#241D28",
+          mapBackground: "#1D1D1D",
+          wardFills: ["#303030", "#262626", "#383838", "#222222"],
+          dataSurface: "#242424",
         }
       : {}),
   };
+}
+function lightenAccent(hex: string) {
+  return `#${[1, 3, 5]
+    .map((offset) =>
+      Math.round(parseInt(hex.slice(offset, offset + 2), 16) * 0.4 + 255 * 0.6)
+        .toString(16)
+        .padStart(2, "0"),
+    )
+    .join("")}`;
 }
 export const format = (n: number | undefined | null, decimals?: number) =>
   n == null

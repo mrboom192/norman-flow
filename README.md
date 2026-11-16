@@ -13,7 +13,7 @@ npm run web
 npm start
 ```
 
-A fresh install opens Welcome. Source datasets are intentionally pending: all analytical values remain empty until files are imported. Home → Add new data & re-rank accepts CSV, XLSX, KML and KMZ. Review the preview, then confirm. Menu offers settings and undo of the last run.
+A fresh install prepares road data with a visible startup progress screen, then opens Welcome. Approved base datasets load automatically from `assets/data/base/`; saved user uploads are restored too. If neither is available, analytical values remain empty. Home → Add new data & re-rank accepts CSV, XLSX, KML and KMZ. Review the preview, then confirm. Menu offers settings and undo of the last run.
 
 ```sh
 npm test
@@ -24,6 +24,21 @@ npx expo export --platform all
 
 Native dependencies require an SDK-compatible development build if your installed app binary does not include them. No signing, deployment, or native builds have been performed.
 
+## Base data and uploaded files
+
+Put approved raw datasets in [`assets/data/base/`](assets/data/base/README.md).
+Use `Road_Segments.kmz`, `Norman_Traffic_AnalysisOCT22.xlsx`,
+`Traffic_Project_OU_FALL_PROJECT.xlsx` and `pdicollisionsq-2016.xlsx` for the main
+sources. All are optional; the linked guide covers additional years and ward files.
+Restart Metro after adding/changing files. Metro discovers and bundles supported
+files automatically for development and builds; no manual import list is required.
+
+Menu separates **Base files** (included with the app) from **Uploaded files**
+(saved on the device). Uploaded geometry overrides base layers; traffic years
+accumulate and collision IDs merge. With no base files, uploads supply the analysis;
+with neither, the app displays no data. Startup shows the actual restore/load/rank
+stages and reports unreadable files without preventing use of available data.
+
 ## Maintain
 
 - `AGENTS.md`: full feature behavior, rules, implementation notes and pending release checks.
@@ -33,4 +48,4 @@ Native dependencies require an SDK-compatible development build if your installe
 - `src/app`: Expo Router screens.
 - `assets/data/README.md`: instructions for adding the approved source assets.
 
-The app never recommends projects, prices or fixes. Synthetic unit test records are not displayed in the UI. Real datasets, source PDF, video, optional shapefile and final credits will be connected later.
+The app never recommends projects, prices or fixes. Synthetic unit test records are not displayed in the UI. The base folder is ready for approved datasets. Source PDF, video, optional shapefile and final credits remain pending.

@@ -2,7 +2,7 @@ import { useEffect, useRef } from "react";
 import { View } from "react-native";
 import MapView, { Polygon, Polyline } from "react-native-maps";
 import { useTheme } from "../theme";
-import { useFlow } from "../store/useFlow";
+import { useFlow, visibleGeometry } from "../store/useFlow";
 import { SegmentResult } from "../analysis/types";
 import { T } from "./ui";
 type MapProps = {
@@ -24,12 +24,7 @@ export function RoadMap({
   const c = useTheme(),
     state = useFlow(),
     map = useRef<MapView>(null),
-    data = {
-      segments: state.files
-        .filter((f) => f.visible)
-        .flatMap((f) => f.data.segments),
-      wards: state.files.filter((f) => f.visible).flatMap((f) => f.data.wards),
-    },
+    data = visibleGeometry(state.files),
     roads =
       segments ??
       state.results?.segments.filter((s) =>
