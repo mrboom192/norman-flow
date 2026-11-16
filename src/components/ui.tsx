@@ -155,12 +155,12 @@ export function Button({
         style,
       ]}
     >
-      {Icon && <Icon size={17} color={outline ? c.ink : c.white} />}
+      {Icon && <Icon size={17} color={outline ? c.ink : c.onPrimary} />}
       <T
         size={14}
         style={{
           fontFamily: fonts.bold,
-          color: outline ? c.ink : c.white,
+          color: outline ? c.ink : c.onPrimary,
           textAlign: "center",
         }}
       >
@@ -278,7 +278,7 @@ export function Chip({
       <T
         size={12}
         style={{
-          color: active ? c.white : c.muted,
+          color: active ? c.onPrimary : c.muted,
           fontFamily: fonts.medium,
         }}
       >
@@ -313,7 +313,11 @@ export function WardPicker() {
             backgroundColor: ward === n ? c.primary : c.surface,
           }}
         >
-          <T heading size={19} style={{ color: ward === n ? c.white : c.ink }}>
+          <T
+            heading
+            size={19}
+            style={{ color: ward === n ? c.onPrimary : c.ink }}
+          >
             {n}
           </T>
         </Pressable>

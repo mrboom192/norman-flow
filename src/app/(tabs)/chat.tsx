@@ -124,7 +124,7 @@ export default function Chat() {
             >
               <T
                 size={14}
-                style={{ color: m.role === "user" ? c.white : c.ink }}
+                style={{ color: m.role === "user" ? c.onPrimary : c.ink }}
               >
                 {m.text}
               </T>

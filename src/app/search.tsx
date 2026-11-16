@@ -218,7 +218,7 @@ export default function SearchScreen() {
                     size={13}
                     style={{
                       fontFamily: fonts.bold,
-                      color: m === mode ? c.white : c.muted,
+                      color: m === mode ? c.onPrimary : c.muted,
                     }}
                   >
                     {m}
@@ -258,12 +258,19 @@ export default function SearchScreen() {
             </View>
           </Row>
         </View>
+      </View>
+      <View
+        style={{
+          position: "absolute",
+          bottom: insets.bottom + 20,
+          left: Math.max(20, insets.left),
+          right: Math.max(20, insets.right),
+          gap: 12,
+        }}
+      >
         {mode === "Heat" && (
           <View
             style={{
-              position: "absolute",
-              bottom: insets.bottom + 84,
-              left: 16,
               padding: 10,
               borderRadius: 12,
               backgroundColor: c.surface,
@@ -289,15 +296,21 @@ export default function SearchScreen() {
             </T>
           </View>
         )}
-      </View>
-      <View
-        style={{
-          position: "absolute",
-          bottom: insets.bottom + 20,
-          left: Math.max(20, insets.left),
-          right: Math.max(20, insets.right),
-        }}
-      >
+        {!matching.length && (
+          <View
+            style={{
+              backgroundColor: c.surface,
+              padding: 14,
+              borderRadius: 14,
+            }}
+          >
+            <T muted size={12}>
+              {state.results?.segments.length
+                ? "No visible roads match. Clear your search or filters, or check the map layers."
+                : "Import road segments to display your analysis."}
+            </T>
+          </View>
+        )}
         <Button
           label={
             selected ? `View ${selected.road} details` : "Explore road segments"

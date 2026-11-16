@@ -256,10 +256,6 @@ export default function Home() {
               onPress={() =>
                 router.push({ pathname: "/chat", params: { question: q } })
               }
-              style={{
-                backgroundColor: "transparent",
-                borderColor: colors.border,
-              }}
             />
           ),
         )}

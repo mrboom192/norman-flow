@@ -71,13 +71,7 @@ export function RoadMap({
               .map((r) =>
                 r.map(([latitude, longitude]) => ({ latitude, longitude })),
               )}
-            fillColor={
-              (state.colorblind
-                ? w.id % 2
-                  ? c.blueTint
-                  : "#FBEAD5"
-                : c.wardFills[(w.id - 1) % 4]) + "80"
-            }
+            fillColor={c.wardFills[(w.id - 1) % 4] + "80"}
             strokeColor={c.border}
           />
         ))}
@@ -90,9 +84,7 @@ export function RoadMap({
             }))}
             strokeColor={
               s.id === state.selected
-                ? state.colorblind
-                  ? c.orange
-                  : c.primary
+                ? c.primary
                 : mode === "Heat"
                   ? (metric === "vc" ? (s.vc ?? 0) >= 1 : s.collisions > 0)
                     ? c.orange
@@ -109,7 +101,7 @@ export function RoadMap({
           />
         ))}
       </MapView>
-      {!roads.length && (
+      {preview && !roads.length && (
         <View
           style={{
             position: "absolute",

@@ -1,9 +1,10 @@
 import { useFlow } from "../store/useFlow";
+import { accentText, defaultPrimary, luminance } from "./palette";
 export const colors = {
   background: "#FFFFFF",
   surface: "#FFFFFF",
-  primary: "#C2255C",
-  primaryText: "#B0174F",
+  primary: defaultPrimary,
+  primaryText: accentText(defaultPrimary),
   primaryDeep: "#404040",
   primaryTint: "#F0F0F0",
   chipTint: "#F5F5F5",
@@ -38,7 +39,8 @@ export function useTheme() {
   return {
     ...colors,
     primary,
-    primaryText: primary,
+    primaryText: accentText(primary),
+    onPrimary: luminance(primary) > 0.179 ? colors.ink : colors.white,
     ...(dark
       ? {
           background: colors.ink,

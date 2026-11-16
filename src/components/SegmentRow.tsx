@@ -43,7 +43,7 @@ export function SegmentRow({
             <T
               heading
               size={19}
-              style={{ color: (rank ?? 99) <= 3 ? c.white : c.primaryDeep }}
+              style={{ color: (rank ?? 99) <= 3 ? c.onPrimary : c.primaryDeep }}
             >
               {format(rank)}
             </T>

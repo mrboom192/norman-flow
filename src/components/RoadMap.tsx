@@ -103,13 +103,7 @@ export function RoadMap({
             <Polygon
               key={`${i}-${j}`}
               points={ring.map(project).join(" ")}
-              fill={
-                state.colorblind
-                  ? w.id % 2
-                    ? c.blueTint
-                    : "#FBEAD5"
-                  : c.wardFills[(w.id - 1) % 4]
-              }
+              fill={c.wardFills[(w.id - 1) % 4]}
               fillOpacity={0.7}
               stroke={c.border}
               strokeWidth={0.8}
@@ -120,9 +114,7 @@ export function RoadMap({
           const selected = s.id === state.selected;
           const high = metric === "vc" ? (s.vc ?? 0) >= 1 : s.collisions > 0;
           const color = selected
-            ? state.colorblind
-              ? c.orange
-              : c.primary
+            ? c.primary
             : mode === "Heat"
               ? (metric === "vc" ? s.vc : s.maxVolume) === undefined
                 ? c.muted

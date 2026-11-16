@@ -428,3 +428,12 @@ Dependency maintenance: SheetJS is installed from the official `cdn.sheetjs.com`
 - Startup explicitly restores persisted uploads, loads/caches base files through the existing parser, then prepares rankings before showing routes. A themed progress screen reports these stages. File errors are visible and allow continuing with available data.
 - `DatasetFile.source` distinguishes `base` and `uploaded`; legacy files without a marker are uploads. Uploaded segment/ward layers override base geometry, traffic accumulates and collision IDs merge with upload precedence. Base files remain listed separately and are maintained in the build. Removing uploaded geometry falls back to base geometry. With no base data or uploads, use truthful empty states.
 - Base content hashes invalidate parsed caches. Removed bundled files leave the next analysis; changed base inputs rerun the pipeline and clear the obsolete undo snapshot. Unchanged saved analysis is reused.
+
+### Appearance update (November 15, 2026)
+
+The Menu sections sit flush with the page background, with no enclosing cards.
+Colorblind-friendly mode has been removed from settings, persistence and map behavior.
+The current swatches live in `src/theme/palette.ts`; light pink (`#f6b0e8`) is the
+default primary. Existing installs using the former default migrate to light pink;
+other saved accent choices remain. Use `onPrimary` for text/icons on accent fills
+and `primaryText` for readable accent text on the page background.

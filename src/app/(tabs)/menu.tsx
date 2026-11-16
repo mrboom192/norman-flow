@@ -14,6 +14,7 @@ import {
 } from "../../components/ui";
 import { useFlow } from "../../store/useFlow";
 import { fonts, useTheme } from "../../theme";
+import { appColors } from "../../theme/palette";
 export default function Menu() {
   const c = useTheme(),
     state = useFlow(),
@@ -225,12 +226,6 @@ export default function Menu() {
               state.dark,
               (v: boolean) => state.set({ dark: v }),
             ],
-            [
-              "Colorblind-friendly colors",
-              "Map and charts use blue/orange",
-              state.colorblind,
-              (v: boolean) => state.set({ colorblind: v }),
-            ],
           ].map(([title, sub, value, onChange]) => (
             <Row
               key={String(title)}
@@ -261,12 +256,7 @@ export default function Menu() {
               App color
             </T>
             <Row style={{ gap: 2 }}>
-              {[
-                ["Green", "#1a8f26"],
-                ["Blue", "#1056c7"],
-                ["Plum", "#C96FF2"],
-                ["Pink", "#f6b0e8"],
-              ].map(([name, color]) => (
+              {appColors.map(([name, color]) => (
                 <Pressable
                   key={color}
                   accessibilityLabel={`${name} app color`}

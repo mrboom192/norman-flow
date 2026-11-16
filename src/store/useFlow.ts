@@ -11,6 +11,7 @@ import {
   RawRow,
 } from "../analysis/types";
 import { defaultSettings, runPipeline } from "../analysis/pipeline";
+import { defaultPrimary } from "../theme/palette";
 export type DatasetFile = {
   /** Older persisted files without a source are user uploads. */
   source?: "base" | "uploaded";
@@ -80,7 +81,6 @@ type State = {
   welcomeSeen: boolean;
   ward: number;
   dark: boolean;
-  colorblind: boolean;
   primary: string;
   files: DatasetFile[];
   results: Results | null;
@@ -105,7 +105,6 @@ type SavedState = Pick<
   | "welcomeSeen"
   | "ward"
   | "dark"
-  | "colorblind"
   | "primary"
   | "files"
   | "results"
@@ -126,8 +125,7 @@ export const useFlow = create<State>()(
       welcomeSeen: false,
       ward: 1,
       dark: false,
-      colorblind: false,
-      primary: "#C2255C",
+      primary: defaultPrimary,
       files: [],
       results: null,
       previous: null,
@@ -183,11 +181,24 @@ export const useFlow = create<State>()(
       name: "norman-flow-v1",
       skipHydration: true,
       storage: flowStorage,
+      merge: (persisted, current) => {
+        const saved = {
+          ...(persisted as Partial<SavedState> & { colorblind?: boolean }),
+        };
+        delete saved.colorblind;
+        return {
+          ...current,
+          ...saved,
+          primary:
+            !saved.primary || saved.primary.toLowerCase() === "#c2255c"
+              ? defaultPrimary
+              : saved.primary,
+        };
+      },
       partialize: (s) => ({
         welcomeSeen: s.welcomeSeen,
         ward: s.ward,
         dark: s.dark,
-        colorblind: s.colorblind,
         primary: s.primary,
         files: s.files,
         results: s.results,

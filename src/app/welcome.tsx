@@ -51,7 +51,7 @@ export default function Welcome() {
               justifyContent: "center",
             }}
           >
-            <Play size={24} color={c.white} fill={c.white} />
+            <Play size={24} color={c.onPrimary} fill={c.onPrimary} />
           </Pressable>
           <T heading size={20}>
             How to use the app
