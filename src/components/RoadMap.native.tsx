@@ -1,6 +1,5 @@
-import Svg from "react-native-svg";
 import { crashDensityImage } from "../analysis/crashDensityImage";
-import { CrashPointDots } from "./CrashPointDots";
+import { createCrashLocationIndex } from "../analysis/crashLocationIndex";
 import Constants from "expo-constants";
 import {
   topSegmentMarkers,
@@ -9,7 +8,7 @@ import {
   crashClusters,
 } from "../analysis/crashMap";
 import { heatColor, heatRange, heatValue } from "../analysis/heatmap";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Platform, View } from "react-native";
 import MapView, {
   type Region,
@@ -85,17 +84,19 @@ export function RoadMap({
   const crashDots = !preview && state.crashPointsVisible;
   const vcHeat = mode === "Heat" && metric === "vc";
   const [mapSize, setMapSize] = useState({ width: 390, height: 700 });
-  const [moving, setMoving] = useState(false);
   const [region, setRegion] = useState<Region>({
     latitude: 35.2226,
     longitude: -97.4395,
     latitudeDelta: 0.25,
     longitudeDelta: 0.25,
   });
-  const project = useCallback(
-    ([lat, lon]: number[]) =>
-      `${(0.5 + (lon - region.longitude) / region.longitudeDelta) * mapSize.width},${(0.5 - (lat - region.latitude) / region.latitudeDelta) * mapSize.height}`,
-    [region, mapSize],
+  const locationIndex = useMemo(
+    () => (crashDots ? createCrashLocationIndex(crashPoints) : undefined),
+    [crashDots, crashPoints],
+  );
+  const sites = useMemo(
+    () => locationIndex?.({ ...region, ...mapSize }) ?? [],
+    [locationIndex, region, mapSize],
   );
   const range = heatRange(roads, metric);
   const selected = roads.find((s) => s.id === state.selected);
@@ -144,11 +145,9 @@ export function RoadMap({
             height: event.nativeEvent.layout.height,
           })
         }
-        onRegionChange={crashDots ? () => setMoving(true) : undefined}
         onRegionChangeComplete={(nextRegion) => {
           camera.current = nextRegion;
           setRegion(nextRegion);
-          setMoving(false);
         }}
         style={{ flex: 1 }}
         initialRegion={{
@@ -262,6 +261,40 @@ export function RoadMap({
             }
           />
         ))}
+        {sites.map((site) => (
+          <Marker
+            key={site.id + ":" + site.count}
+            coordinate={{ latitude: site.latitude, longitude: site.longitude }}
+            anchor={{ x: 0.5, y: 0.5 }}
+            tracksViewChanges={false}
+            title={
+              site.count === 1
+                ? "Crash location"
+                : site.count.toLocaleString() + " crashes"
+            }
+            zIndex={5}
+          >
+            <View
+              style={{
+                minWidth: site.count > 1 ? 30 : 9,
+                height: site.count > 1 ? 25 : 9,
+                borderRadius: 14,
+                paddingHorizontal: site.count > 1 ? 5 : 0,
+                borderWidth: 1,
+                borderColor: c.white,
+                backgroundColor: c.crashMarker,
+                justifyContent: "center",
+                alignItems: "center",
+              }}
+            >
+              {site.count > 1 && (
+                <T size={11} style={{ color: c.white }}>
+                  {site.count.toLocaleString()}+
+                </T>
+              )}
+            </View>
+          </Marker>
+        ))}
         {!preview &&
           markers.map((marker) => (
             <Marker
@@ -308,29 +341,6 @@ export function RoadMap({
             </Marker>
           ))}
       </MapView>
-      {crashDots && (
-        <View
-          pointerEvents="none"
-          style={{
-            opacity: moving ? 0 : 1,
-            position: "absolute",
-            top: 0,
-            left: 0,
-            right: 0,
-            bottom: 0,
-          }}
-        >
-          <Svg width="100%" height="100%">
-            {crashDots && (
-              <CrashPointDots
-                points={crashPoints}
-                project={project}
-                radius={1.8}
-              />
-            )}
-          </Svg>
-        </View>
-      )}
       {preview && !roads.length && (
         <View
           style={{

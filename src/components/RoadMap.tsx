@@ -1,9 +1,10 @@
-import { CrashPointDots } from "./CrashPointDots";
+import { CrashPointDots, MapViewport } from "./CrashPointDots";
 import {
   type ComponentProps,
   type ComponentType,
   type ReactNode,
   useRef,
+  useEffect,
   useState,
   useMemo,
 } from "react";
@@ -41,6 +42,18 @@ function MapSurface({
   zoom: number;
 }) {
   const [center, setCenter] = useState({ x: 0, y: 0 });
+  const surface = useRef<HTMLDivElement>(null);
+  const [size, setSize] = useState({ width: 360, height: 360 });
+  useEffect(() => {
+    const element = surface.current;
+    if (!element || preview) return;
+    const observer = new ResizeObserver(([entry]) => {
+      const { width, height } = entry.contentRect;
+      if (width && height) setSize({ width, height });
+    });
+    observer.observe(element);
+    return () => observer.disconnect();
+  }, [preview]);
   const drag = useRef<{
     id: number;
     x: number;
@@ -50,6 +63,7 @@ function MapSurface({
   const dragged = useRef(false);
   return (
     <div
+      ref={surface}
       style={{
         position: "absolute",
         inset: 0,
@@ -101,7 +115,16 @@ function MapSurface({
         height="100%"
         viewBox={`${center.x * zoom} ${center.y * zoom} 360 360`}
       >
-        {children}
+        <MapViewport.Provider
+          value={{
+            x: 180 + center.x * zoom,
+            y: 180 + center.y * zoom,
+            ...size,
+            unitsPerPixel: 360 / Math.min(size.width, size.height),
+          }}
+        >
+          {children}
+        </MapViewport.Provider>
       </Svg>
     </div>
   );
@@ -275,7 +298,16 @@ export function RoadMap({
             />
           );
         })}
-        {crashDots && <CrashPointDots points={crashPoints} project={project} />}
+        {crashDots && (
+          <CrashPointDots
+            points={crashPoints}
+            project={project}
+            midLat={(minLat + maxLat) / 2}
+            midLon={(minLon + maxLon) / 2}
+            latScale={scale}
+            lonScale={scale * Math.cos((minLat * Math.PI) / 180)}
+          />
+        )}
         {!preview &&
           markers.map((marker) => {
             const [cx, cy] = project(marker.point).split(",").map(Number);

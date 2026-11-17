@@ -287,7 +287,7 @@ export default function SearchScreen() {
               <IconButton
                 icon={Plus}
                 label="Zoom in"
-                onPress={() => setZoom(Math.min(zoom * 1.4, 10))}
+                onPress={() => setZoom(Math.min(zoom * 1.4, 1024))}
                 style={{ borderRadius: 14 }}
               />
               <IconButton
@@ -567,13 +567,13 @@ export default function SearchScreen() {
               Crash layers
             </T>
             <T muted size={12}>
-              Each crash is one point. The heatmap blends nearby crashes into
-              stronger hotspots within about 200 metres.
+              Zoom in to separate nearby crash locations. The heatmap blends
+              crashes into stronger hotspots within about 200 metres.
             </T>
             {[
               [
                 "Crash locations",
-                "Original points at their recorded coordinates",
+                "Count badges for groups · dots for individual crashes",
                 "crashPointsVisible",
               ],
               [
