@@ -41,3 +41,7 @@ example
 # generated native folders
 /ios
 /android
+
+# Chat proxy local secrets
+proxy/.dev.vars
+proxy/.wrangler/

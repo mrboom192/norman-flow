@@ -48,4 +48,4 @@ stages and reports unreadable files without preventing use of available data.
 - `src/app`: Expo Router screens.
 - `assets/data/README.md`: instructions for adding the approved source assets.
 
-The app never recommends projects, prices or fixes. Synthetic unit test records are not displayed in the UI. The current base contains the prepared Norman segment rankings and both GeoJSON map layers. Source PDF, video, optional shapefile and final credits remain pending.
+The app never recommends projects, prices or fixes. Synthetic unit test records are not displayed in the UI. The current base contains the prepared Norman segment rankings and both GeoJSON map layers. The ACOG capacity PDF is bundled; the walkthrough video and optional shapefile remain pending. The AI chatbot (Beta) needs the chat proxy in `proxy/` deployed; see `proxy/README.md`. Without it the chatbot uses its built-in answers.

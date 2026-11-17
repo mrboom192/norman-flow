@@ -122,6 +122,7 @@ export function Button({
   label,
   onPress,
   outline = false,
+  danger = false,
   icon: Icon,
   style,
   disabled = false,
@@ -129,6 +130,8 @@ export function Button({
   label: string;
   onPress: () => void;
   outline?: boolean;
+  /** Red, for actions that delete or reset data. */
+  danger?: boolean;
   icon?: LucideIcon;
   style?: ViewStyle;
   disabled?: boolean;
@@ -149,7 +152,11 @@ export function Button({
           justifyContent: "center",
           flexDirection: "row",
           gap: 8,
-          backgroundColor: outline ? "transparent" : c.primary,
+          backgroundColor: outline
+            ? "transparent"
+            : danger
+              ? c.danger
+              : c.primary,
           borderWidth: 1,
           borderColor: outline ? c.border : "transparent",
           opacity: disabled ? 0.45 : pressed ? 0.75 : 1,
@@ -157,12 +164,17 @@ export function Button({
         style,
       ]}
     >
-      {Icon && <Icon size={17} color={outline ? c.ink : c.onPrimary} />}
+      {Icon && (
+        <Icon
+          size={17}
+          color={outline ? c.ink : danger ? c.onDanger : c.onPrimary}
+        />
+      )}
       <T
         size={14}
         style={{
           fontFamily: fonts.bold,
-          color: outline ? c.ink : c.onPrimary,
+          color: outline ? c.ink : danger ? c.onDanger : c.onPrimary,
           textAlign: "center",
         }}
       >

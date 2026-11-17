@@ -1,5 +1,6 @@
 export const appColors = [
-  ["Green", "#1a8f26"],
+  // Darkened from #1a8f26 so white button text passes 4.5:1 (4.75).
+  ["Green", "#188523"],
   ["Blue", "#1056c7"],
   ["Plum", "#C96FF2"],
   ["Pink", "#f6b0e8"],

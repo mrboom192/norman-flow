@@ -10,7 +10,6 @@ import {
   Map as MapIcon,
   Moon,
   Palette,
-  RotateCcw,
   ShieldCheck,
   SlidersHorizontal,
   Trash2,
@@ -20,7 +19,13 @@ import {
 import { type ReactNode, useRef, useState } from "react";
 import { Linking, Pressable, ScrollView, View } from "react-native";
 import { OfficialNote } from "../../components/OfficialNote";
+import { CapacityPresets } from "../../components/CapacityPresets";
+import {
+  ResetAliasesButton,
+  ResetMapButton,
+} from "../../components/ResetActions";
 import { Sheet } from "../../components/Sheet";
+import { credits } from "../../config/credits";
 import { useTourTarget } from "../../components/tourTargets";
 import {
   Button,
@@ -38,8 +43,7 @@ import { useFlow } from "../../store/useFlow";
 import { fonts, useTheme } from "../../theme";
 import { appColors } from "../../theme/palette";
 
-type MenuSheet =
-  "" | "files" | "analysis" | "remove" | "undo" | "capacity" | "editCapacity";
+type MenuSheet = "" | "files" | "analysis" | "remove" | "undo" | "capacity";
 
 export default function Menu() {
   const c = useTheme(),
@@ -50,19 +54,13 @@ export default function Menu() {
     [segment, setSegment] = useState(""),
     [lanes, setLanes] = useState(""),
     [status, setStatus] = useState(""),
-    [capacities, setCapacities] = useState(state.settings.capacities);
+    [capacityMode, setCapacityMode] = useState<"view" | "edit">("view");
   const scroll = useRef<React.ComponentRef<typeof ScrollView>>(null);
   const dataTarget = useTourTarget("menu-data", scroll);
   function saveSettings() {
     const meters = Number(distance);
     if (!Number.isFinite(meters) || meters <= 0) {
       setStatus("Enter a match distance greater than zero.");
-      return;
-    }
-    if (
-      Object.values(capacities).some((v) => !Number.isFinite(v.e) || v.e <= 0)
-    ) {
-      setStatus("All LOS E capacities must be positive numbers.");
       return;
     }
     const overrides = { ...state.settings.laneOverrides };
@@ -83,7 +81,6 @@ export default function Menu() {
         ...state.settings,
         matchDistance: meters,
         laneOverrides: overrides,
-        capacities,
       });
       setStatus("Settings saved and analysis rerun.");
     } catch (e) {
@@ -224,28 +221,35 @@ export default function Menu() {
         </Section>
 
         <Section title="Help">
-          <MenuRow
-            icon={CirclePlay}
-            title="Replay tutorial"
-            onPress={() => router.push("/welcome")}
-          />
-          <MenuRow
-            icon={RotateCcw}
-            title="Reset map"
-            subtitle="Clear selection, search, filters and zoom"
-            onPress={() => {
-              state.set({ selected: null, mapReset: state.mapReset + 1 });
-              router.push("/search");
-            }}
-          />
+          <View style={{ gap: 10, paddingTop: 4 }}>
+            <Button
+              icon={CirclePlay}
+              label="Replay tutorial"
+              onPress={() => router.push("/welcome")}
+            />
+            <ResetMapButton
+              onDone={() =>
+                setStatus(
+                  "Map reset. Only the official 2026 base data remains.",
+                )
+              }
+            />
+          </View>
         </Section>
 
         <Section title="Resources">
           <MenuRow
             icon={Gauge}
             title="ACOG network capacities"
-            subtitle="LOS E capacity used for V/C"
-            onPress={() => setSheet("capacity")}
+            subtitle={
+              state.settings.capacityPreset
+                ? `What-if preset in use: ${state.settings.capacityPreset.name}`
+                : "LOS E capacity used for V/C · PDF and presets"
+            }
+            onPress={() => {
+              setCapacityMode("view");
+              setSheet("capacity");
+            }}
           />
           <MenuRow
             icon={Globe}
@@ -273,13 +277,11 @@ export default function Menu() {
           <T heading size={15}>
             Norman Flow
           </T>
-          <T muted size={12} style={{ textAlign: "center" }}>
-            Built for the MIS Data Analytics Case Competition.{"\n"}Thank you to
-            the City of Norman Transportation team.
-          </T>
-          <T muted size={11} style={{ textAlign: "center" }}>
-            Team and professor credits will be added before release.
-          </T>
+          {credits.map((line) => (
+            <T key={line} muted size={12} style={{ textAlign: "center" }}>
+              {line}
+            </T>
+          ))}
         </View>
       </Screen>
 
@@ -293,9 +295,9 @@ export default function Menu() {
                 ? "Remove this file?"
                 : sheet === "undo"
                   ? "Undo the last run?"
-                  : sheet === "editCapacity"
+                  : capacityMode === "edit"
                     ? "Edit LOS E capacities"
-                    : "ACOG network capacities"
+                    : "LOS E capacities"
         }
         visible={!!sheet}
         onClose={() => setSheet("")}
@@ -459,21 +461,19 @@ export default function Menu() {
                 {field}: {values?.join(", ")}
               </T>
             ))}
-            <Row style={{ gap: 10 }}>
-              <Button
-                outline
-                label="Reset aliases"
-                disabled={!Object.keys(state.aliases).length}
-                onPress={() => state.set({ aliases: {} })}
-                style={{ flex: 1, paddingHorizontal: 8 }}
-              />
-              <Button
-                outline
-                label="Edit capacities"
-                onPress={() => setSheet("editCapacity")}
-                style={{ flex: 1, paddingHorizontal: 8 }}
-              />
-            </Row>
+            <ResetAliasesButton />
+            <SheetLabel
+              title="LOS E capacities"
+              body="Capacity presets (what-if tests) live with the ACOG table."
+            />
+            <Button
+              outline
+              label="Open capacity presets"
+              onPress={() => {
+                setCapacityMode("view");
+                setSheet("capacity");
+              }}
+            />
             <Button label="Save & re-rank" onPress={saveSettings} />
             {!!status && (
               <T size={12} accessibilityLiveRegion="polite">
@@ -515,52 +515,7 @@ export default function Menu() {
             />
           </>
         ) : (
-          <>
-            <T muted size={13}>
-              Daily vehicles · LOS E (2025 plan). Values supplied in the
-              competition brief. The source PDF will be linked when provided.
-            </T>
-            <View>
-              {Object.entries(capacities).map(([name, value], i) => (
-                <Row
-                  key={name}
-                  style={{
-                    minHeight: 50,
-                    gap: 12,
-                    borderTopWidth: i ? 1 : 0,
-                    borderColor: c.divider,
-                  }}
-                >
-                  <T size={13} style={{ flex: 1 }}>
-                    {name}
-                  </T>
-                  {sheet === "editCapacity" ? (
-                    <Input
-                      value={String(value.e)}
-                      keyboardType="numeric"
-                      onChangeText={(v) =>
-                        setCapacities((t) => ({
-                          ...t,
-                          [name]: { ...value, e: Number(v) },
-                        }))
-                      }
-                      style={{ width: 110, minHeight: 44 }}
-                    />
-                  ) : (
-                    <T size={13} style={{ fontFamily: fonts.bold }}>
-                      {value.e.toLocaleString()}
-                    </T>
-                  )}
-                </Row>
-              ))}
-            </View>
-            {sheet === "editCapacity" && (
-              <Button
-                label="Use these values"
-                onPress={() => setSheet("analysis")}
-              />
-            )}
-          </>
+          <CapacityPresets mode={capacityMode} onMode={setCapacityMode} />
         )}
       </Sheet>
     </View>

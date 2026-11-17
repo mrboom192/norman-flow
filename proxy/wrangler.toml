@@ -1,0 +1,16 @@
+# Cloudflare Worker that holds the Gemini API key for the Norman Flow chatbot.
+# Deploy: see README.md in this folder. Never commit the key; set it with
+#   npx wrangler secret put GEMINI_API_KEY
+name = "norman-flow-chat"
+main = "src/index.js"
+compatibility_date = "2026-11-01"
+
+[vars]
+# Comma-separated web origins allowed to call the proxy (native apps send no Origin).
+ALLOWED_ORIGINS = "http://localhost:8081"
+
+# 10 questions per minute per client IP.
+[[ratelimits]]
+name = "CHAT_LIMITER"
+namespace_id = "1001"
+simple = { limit = 10, period = 60 }

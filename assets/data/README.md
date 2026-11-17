@@ -18,5 +18,6 @@ import the results file it creates. **Restore official 2026 results** brings the
 bundled files back. Recalculating from raw spreadsheets is only available under
 **Advanced (unofficial)**, because its rules differ from the official tool.
 
-Do not copy test fixtures into the application. PDF/video resources are separate
-from analysis inputs and remain pending.
+Do not copy test fixtures into the application. The ACOG capacity PDF in `base/`
+is a reference document, not an analysis input (the base-data script only bundles
+data formats as inputs). The walkthrough video remains pending.

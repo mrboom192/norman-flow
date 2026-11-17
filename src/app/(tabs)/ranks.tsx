@@ -11,11 +11,13 @@ import { useMemo, useRef, useState } from "react";
 import { Pressable, ScrollView, View } from "react-native";
 import { rankSegments } from "../../analysis/rankings";
 import { RankKind } from "../../analysis/types";
+import { DatasetBanner } from "../../components/DatasetBanner";
 import { SegmentRow } from "../../components/SegmentRow";
 import { Sheet } from "../../components/Sheet";
 import { useTourTarget } from "../../components/tourTargets";
 import { Button, Empty, Input, Row, Screen, T } from "../../components/ui";
 import { download } from "../../services/download";
+import { describeDataset } from "../../services/dataset";
 import { exportWorkbook } from "../../services/export";
 import { useFlow } from "../../store/useFlow";
 import { fonts, useTheme } from "../../theme";
@@ -84,13 +86,16 @@ export default function Rankings() {
   async function save(all: boolean, city = false) {
     if (!result) return;
     setBusy(true);
+    const { files, settings } = useFlow.getState();
+    const dataset = describeDataset(result, files, settings);
     try {
       await download(
         await exportWorkbook(
           result,
           city ? "citywide" : all ? undefined : ward,
+          dataset.header,
         ),
-        `Norman-Flow-${city ? "Citywide" : all ? "All-Wards" : "Ward-" + ward}.xlsx`,
+        `Norman-Flow-${dataset.fileTag}-${city ? "Citywide" : all ? "All-Wards" : "Ward-" + ward}.xlsx`,
       );
       setSheet("");
       setStatus("Workbook exported.");
@@ -125,6 +130,7 @@ export default function Rankings() {
             <Download size={20} color={c.ink} />
           </Pressable>
         </Row>
+        <DatasetBanner style={{ paddingHorizontal: 20 }} />
 
         <View {...wardsTarget} style={{ gap: 16 }}>
           <ScrollView

@@ -60,6 +60,9 @@ export const colors = {
   dataSurface: "#F5F5F5",
   dataInk: "#171717",
   dataMuted: "#1C1C1C",
+  // Destructive actions (reset, delete). White text passes 4.5:1 on it.
+  danger: "#C62828",
+  onDanger: "#FFFFFF",
   // Heat-mode map views. V/C runs light to dark red; collisions light to
   // dark purple so the two never read as the same metric; combined uses four
   // rank tiers (top 3, 4–5, 6–10, 11+), darkest for the best ranks.

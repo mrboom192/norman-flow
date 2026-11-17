@@ -1,4 +1,5 @@
 import { rankSegments, rankingVersion } from "./rankings";
+import { isOfficialPreset, presetCapacity } from "./capacity";
 import { wardLayer, segmentLayer, validateJoin } from "./prepared";
 import capacity from "../config/capacity.json";
 import { Inputs, Results, SegmentResult, Settings } from "./types";
@@ -46,6 +47,22 @@ export function runPipeline(
   if (!Number.isFinite(settings.matchDistance) || settings.matchDistance <= 0)
     throw new Error("Match distance must be greater than zero.");
   if (inputs.summaries) validateJoin(inputs.segments, inputs.summaries);
+  // A custom capacity preset is a what-if view: it changes capacities (and so
+  // V/C and the V/C and combined ranks), never the results file itself.
+  const preset = isOfficialPreset(settings.capacityPreset)
+    ? undefined
+    : settings.capacityPreset;
+  const tableSettings: Settings = preset
+    ? {
+        ...settings,
+        capacities: Object.fromEntries(
+          Object.entries(settings.capacities).map(([k, v]) => [
+            k,
+            { ...v, e: preset.values[k] ?? v.e },
+          ]),
+        ),
+      }
+    : settings;
   const summaryById = new Map(inputs.summaries?.map((r) => [r.id, r]));
   const segments: SegmentResult[] = [...inputs.segments]
     .sort((a, b) => a.id.localeCompare(b.id))
@@ -78,14 +95,25 @@ export function runPipeline(
       s.maxVolume = row.volume;
       if (!inputs.collisions.length) s.collisions = row.collisions;
     }
-    const mapped = capacityFor(s, settings);
+    const mapped = capacityFor(s, tableSettings);
     // Preserve the verified facility capacity, including categories absent from the legacy table.
     const adjusted =
       row &&
       mapped !== undefined &&
       mapped !== capacityFor({ ...s, flags: [] }, defaultSettings);
+    const fromPreset =
+      row && preset && !settings.laneOverrides[s.id]
+        ? presetCapacity(row.facility, row.capacity, preset)
+        : undefined;
+    if (row && preset && fromPreset === undefined)
+      s.flags.push(
+        "Facility not in the capacity preset — official capacity used",
+      );
     s.capacity =
-      row && !settings.laneOverrides[s.id] && !adjusted ? row.capacity : mapped;
+      fromPreset ??
+      (row && !settings.laneOverrides[s.id] && !adjusted
+        ? row.capacity
+        : mapped);
     if (s.capacity)
       s.flags = s.flags.filter((f) => f !== "No capacity for this facility");
   });

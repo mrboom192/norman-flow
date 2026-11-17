@@ -70,7 +70,18 @@ export type Unmatched = {
   raw: RawRow;
 };
 export type RankKind = "combined" | "vc" | "collisions";
-export type CapacityTable = Record<string, { c: number; e: number }>;
+export type CapacityTable = Record<
+  string,
+  { c?: number; e: number; note?: string }
+>;
+/** A named set of LOS E capacities, keyed by capacity-table row. */
+export type CapacityPreset = {
+  id: string;
+  name: string;
+  values: Record<string, number>;
+  createdAt: string;
+  updatedAt: string;
+};
 export type SegmentSummary = {
   id: string;
   /** Full-precision V/C from the results file (volume ÷ capacity). */
@@ -111,6 +122,12 @@ export type Settings = {
   matchDistance: number;
   laneOverrides: Record<string, number>;
   capacities: CapacityTable;
+  /**
+   * A custom ("what-if") capacity preset. When set, each ranked segment's
+   * capacity comes from this preset by facility type, so V/C and the V/C and
+   * combined ranks change; the official results file is never modified.
+   */
+  capacityPreset?: CapacityPreset;
 };
 export type Results = {
   rankingVersion?: number;

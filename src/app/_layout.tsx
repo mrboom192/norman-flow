@@ -85,6 +85,10 @@ export default function Layout() {
               name="diagnostics"
               options={{ presentation: "modal" }}
             />
+            <Stack.Screen
+              name="data/[topic]"
+              options={{ presentation: "modal" }}
+            />
           </Stack>
         </View>
       </View>

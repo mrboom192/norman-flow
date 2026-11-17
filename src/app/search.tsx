@@ -27,6 +27,7 @@ import {
   type ViewStyle,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { DatasetBanner } from "../components/DatasetBanner";
 import { HeatPanel } from "../components/HeatPanel";
 import type { MapMetric } from "../analysis/mapViews";
 import { RoadMap } from "../components/RoadMap";
@@ -310,6 +311,7 @@ export default function SearchScreen() {
             );
           })}
         </View>
+        <DatasetBanner style={{ borderRadius: 14, boxShadow: c.floatShadow }} />
         <Row style={{ alignItems: "flex-start" }}>
           <View
             pointerEvents="box-none"

@@ -178,6 +178,7 @@ export async function parseFile(
     rawSheets,
     summary,
     parserVersion: preparedParserVersion,
+    importedAt: new Date().toISOString(),
     visible: true,
   };
 }

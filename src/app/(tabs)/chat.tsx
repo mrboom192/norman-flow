@@ -9,29 +9,43 @@ import {
 } from "lucide-react-native";
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
+  Animated,
+  Easing,
   KeyboardAvoidingView,
   Platform,
   Pressable,
   ScrollView,
   View,
 } from "react-native";
-import { answerQuestion } from "../../analysis/chat";
+import { buildChatContext } from "../../analysis/chatContext";
+import { askChat } from "../../services/aiChat";
+import { describeDataset } from "../../services/dataset";
 import { useTourTarget } from "../../components/tourTargets";
 import { Input, Row, T } from "../../components/ui";
 import { faqs, faqTopics, type FaqTopic } from "../../config/faq";
-import { useFlow } from "../../store/useFlow";
+import { combine, useFlow } from "../../store/useFlow";
 import { colors, fonts, useTheme } from "../../theme";
 
-type Message = { role: "bot" | "user"; text: string; source?: string };
+type Message = {
+  role: "bot" | "user";
+  text: string;
+  source?: string;
+  /** "How I got this": files, fields or pages the AI answer used. */
+  sources?: string[];
+};
 const greeting: Message = {
   role: "bot",
-  text: "Hi! Ask me about the data — where it came from, how the rankings work, or how to add new files. I answer offline from this app’s content.",
+  text: "Hi! Ask me about the data — where it came from, how the rankings work, or how to add new files. I answer only from the data loaded in this app.",
 };
 
 export default function Chat() {
   const c = useTheme(),
     results = useFlow((s) => s.results),
+    files = useFlow((s) => s.files),
+    settings = useFlow((s) => s.settings),
     ward = useFlow((s) => s.ward),
+    [thinking, setThinking] = useState(false),
+    [aiUnavailable, setAiUnavailable] = useState(false),
     params = useLocalSearchParams<{ question?: string }>(),
     [draft, setDraft] = useState(""),
     [topic, setTopic] = useState<FaqTopic>("Rankings"),
@@ -58,26 +72,45 @@ export default function Chat() {
   ].filter((q) => !asked.has(q));
   const started = messages.length > 1;
 
-  function send(text: string) {
+  async function send(text: string) {
     const question = text.trim();
-    if (!question) return;
+    if (!question || thinking) return;
+    const history = messages.slice(1).map(({ role, text }) => ({ role, text }));
+    setMessages((m) => [...m, { role: "user", text: question }]);
+    setDraft("");
+    setThinking(true);
+    const answer = await askChat({
+      question,
+      history,
+      results,
+      context: buildChatContext({
+        inputs: combine(files),
+        results,
+        dataset: describeDataset(results, files, settings).header,
+      }),
+    });
+    setAiUnavailable(answer.mode === "basic");
     setMessages((m) => [
       ...m,
-      { role: "user", text: question },
-      { role: "bot", ...answerQuestion(question, results) },
+      {
+        role: "bot",
+        text: answer.text,
+        source: answer.source,
+        sources: answer.sources,
+      },
     ]);
-    setDraft("");
+    setThinking(false);
   }
+  const sendRef = useRef(send);
+  useEffect(() => {
+    sendRef.current = send;
+  });
   useEffect(() => {
     if (params.question && params.question !== last.current) {
       last.current = params.question;
-      setMessages((m) => [
-        ...m,
-        { role: "user", text: params.question! },
-        { role: "bot", ...answerQuestion(params.question!, results) },
-      ]);
+      void sendRef.current(params.question);
     }
-  }, [params.question, results]);
+  }, [params.question]);
 
   return (
     <KeyboardAvoidingView
@@ -99,11 +132,28 @@ export default function Chat() {
             <Bot color={colors.white} size={22} />
           </View>
           <View style={{ flex: 1 }}>
-            <T heading size={28}>
-              Chatbot
-            </T>
+            <Row style={{ justifyContent: "flex-start", gap: 8 }}>
+              <T heading size={28}>
+                Chatbot
+              </T>
+              <View
+                style={{
+                  paddingHorizontal: 8,
+                  paddingVertical: 2,
+                  borderRadius: 999,
+                  backgroundColor: c.primary,
+                }}
+              >
+                <T
+                  size={11}
+                  style={{ fontFamily: fonts.bold, color: c.onPrimary }}
+                >
+                  Beta
+                </T>
+              </View>
+            </Row>
             <T muted size={12}>
-              Offline · answers from this analysis
+              AI answers from the data in this analysis
             </T>
           </View>
         </Row>
@@ -111,7 +161,10 @@ export default function Chat() {
           <Pressable
             accessibilityRole="button"
             accessibilityLabel="Start a new chat"
-            onPress={() => setMessages([greeting])}
+            onPress={() => {
+              setMessages([greeting]);
+              setAiUnavailable(false);
+            }}
             style={({ pressed }) => ({
               width: 44,
               height: 44,
@@ -144,6 +197,7 @@ export default function Chat() {
         {messages.map((m, i) => (
           <Bubble key={i} message={m} />
         ))}
+        {thinking && <Thinking />}
 
         {!started && (
           <View style={{ gap: 12, marginTop: 8 }}>
@@ -211,6 +265,16 @@ export default function Chat() {
         )}
       </ScrollView>
 
+      {aiUnavailable && (
+        <T
+          muted
+          size={12}
+          accessibilityLiveRegion="polite"
+          style={{ paddingHorizontal: 20, paddingBottom: 8 }}
+        >
+          AI unavailable, showing basic answers.
+        </T>
+      )}
       {started && nextQuestions.length > 0 && (
         <ScrollView
           horizontal
@@ -350,11 +414,91 @@ function Bubble({ message: m }: { message: Message }) {
               {m.source}
             </T>
             <T muted size={11}>
-              Capacity table in Menu · PDF coming soon
+              Capacity table and ACOG PDF in Menu
             </T>
           </View>
         </Row>
       )}
+      {!!m.sources?.length && <HowIGotThis sources={m.sources} />}
+    </View>
+  );
+}
+
+function HowIGotThis({ sources }: { sources: string[] }) {
+  const c = useTheme(),
+    [open, setOpen] = useState(false);
+  return (
+    <View style={{ gap: 4 }}>
+      <Pressable
+        accessibilityRole="button"
+        accessibilityState={{ expanded: open }}
+        onPress={() => setOpen(!open)}
+        style={{ minHeight: 44, justifyContent: "center" }}
+      >
+        <T size={12} style={{ fontFamily: fonts.bold, color: c.primaryText }}>
+          {open ? "Hide how I got this" : "How I got this"}
+        </T>
+      </Pressable>
+      {open &&
+        sources.map((s) => (
+          <T key={s} muted size={12}>
+            • {s}
+          </T>
+        ))}
+    </View>
+  );
+}
+
+/** Animated "Thinking…" bubble while the AI answers. */
+function Thinking() {
+  const c = useTheme();
+  const [pulse] = useState(() => new Animated.Value(0));
+  useEffect(() => {
+    const loop = Animated.loop(
+      Animated.timing(pulse, {
+        toValue: 1,
+        duration: 900,
+        easing: Easing.inOut(Easing.ease),
+        useNativeDriver: Platform.OS !== "web",
+      }),
+    );
+    loop.start();
+    return () => loop.stop();
+  }, [pulse]);
+  return (
+    <View
+      accessibilityLiveRegion="polite"
+      accessibilityLabel="Thinking"
+      style={{
+        alignSelf: "flex-start",
+        flexDirection: "row",
+        alignItems: "center",
+        gap: 8,
+        paddingHorizontal: 15,
+        paddingVertical: 12,
+        borderRadius: 22,
+        borderBottomLeftRadius: 6,
+        backgroundColor: c.dataSurface,
+      }}
+    >
+      {[0, 1, 2].map((i) => (
+        <Animated.View
+          key={i}
+          style={{
+            width: 7,
+            height: 7,
+            borderRadius: 4,
+            backgroundColor: c.muted,
+            opacity: pulse.interpolate({
+              inputRange: [0, (i + 1) / 4, 1],
+              outputRange: [0.3, 1, 0.3],
+            }),
+          }}
+        />
+      ))}
+      <T muted size={13}>
+        Thinking…
+      </T>
     </View>
   );
 }

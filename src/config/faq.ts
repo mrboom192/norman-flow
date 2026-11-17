@@ -91,14 +91,14 @@ export const faqs: Faq[] = [
     keywords:
       /privacy|private|sent|upload.*(server|cloud)|online|internet|offline|secure/i,
     answer:
-      "No. Files and results stay on this device or browser. This chatbot works offline and only answers from the app’s own content and your loaded analysis. Clearing browser data or uninstalling removes saved files, so export to Excel to keep a copy.",
+      "Your files and results are saved only on this device or browser. When the AI chatbot (Beta) is available, your question and a summary of the loaded rankings are sent to the team’s server, which asks Google Gemini for an answer; the City data contains no personal information, and the API key never leaves that server. If the AI is unavailable, answers come from the app itself, offline. Export to Excel to keep a copy.",
   },
   {
     question: "What are the numbered map markers?",
     topic: "Map",
     keywords: /marker|numbered|pin|badge/i,
     answer:
-      "The numbered markers show the City’s published citywide combined ranks 1–10, placed halfway along each segment. They can differ from the app’s recalculated ward rankings.",
+      "In Heat mode’s Hotspots view, the numbered markers show the 10 segments with the most crashes citywide (1 = most). In a ward view, numbered badges mark that ward’s top 5 for the selected ranking.",
   },
   {
     question: "How does the crash heat map work?",
@@ -147,7 +147,7 @@ export const faqs: Faq[] = [
     topic: "Using the app",
     keywords: /mile|segment length|short/i,
     answer:
-      "The competition brief splits each road into segments of about one mile, so each stretch of a road is ranked on its own. Collision rankings use raw counts, not counts per mile.",
+      "The City asked for segments of about one mile so each one has its own traffic count, crash count and ward. Each road is cut only at real intersections with major roads, and where the number of lanes changes, choosing the cuts closest to one mile; most segments are 0.97–1.03 miles. Collision rankings use raw counts, not counts per mile.",
   },
   {
     question: "Does the app recommend projects?",

@@ -5,6 +5,8 @@ import { Results, SegmentResult } from "../analysis/types";
 export async function exportWorkbook(
   result: Results,
   ward?: number | "citywide",
+  /** e.g. "Dataset: official 2026 rankings." — the first row of each ranking sheet. */
+  datasetHeader?: string,
 ): Promise<Uint8Array> {
   const workbook = XLSX.utils.book_new();
   const columns = [
@@ -42,6 +44,7 @@ export async function exportWorkbook(
       : [1, 2, 3, 4, 5, 6, 7, 8]) {
     const lists = n === 0 ? rankSegments(result.segments) : result.wards[n];
     const data: unknown[][] = [
+      ...(datasetHeader ? [[datasetHeader]] : []),
       [
         "Combined",
         ...Array(10).fill(""),
@@ -123,13 +126,18 @@ export async function exportWorkbook(
     XLSX.utils.aoa_to_sheet([
       ["Setting", "Value"],
       ["Run date", result.runAt],
+      ...(datasetHeader ? [["Dataset", datasetHeader]] : []),
+      [
+        "Capacity preset",
+        result.settings.capacityPreset?.name ?? "ACOG 2025 LOS E — official",
+      ],
       ["Input files", result.sources.join("; ")],
       ["Match distance (meters)", result.settings.matchDistance],
       ["Capacity table", JSON.stringify(result.settings.capacities)],
       ["Lane overrides", JSON.stringify(result.settings.laneOverrides)],
       [
         "Ranking rules",
-        "Highest historical volume; LOS E; competition ranks; lowest combined sum first; higher V/C breaks score ties.",
+        "Highest historical volume; LOS E; competition ranks (shared ties: 1, 1, 3); lowest combined sum first; higher V/C breaks score ties.",
       ],
     ]),
     "Run info",
@@ -142,7 +150,9 @@ export async function exportWorkbook(
   )) {
     let xml = await zip.files[name].async("string");
     const rows =
-      Number(name.match(/sheet(\d+)/)?.[1]) <= (ward ? 1 : 8) ? 2 : 1;
+      Number(name.match(/sheet(\d+)/)?.[1]) <= (ward ? 1 : 8)
+        ? 2 + (datasetHeader ? 1 : 0)
+        : 1;
     const views = `<sheetViews><sheetView workbookViewId="0"><pane ySplit="${rows}" topLeftCell="A${rows + 1}" activePane="bottomLeft" state="frozen"/></sheetView></sheetViews>`;
     xml = /<sheetViews[\s>]/.test(xml)
       ? xml.replace(/<sheetViews[\s\S]*?<\/sheetViews>/, views)

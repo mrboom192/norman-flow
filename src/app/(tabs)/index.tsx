@@ -5,7 +5,9 @@ import {
   Bot,
   CircleHelp,
   type LucideIcon,
+  Gauge,
   Map,
+  MapPinned,
   Route,
   Stethoscope,
   TrafficCone,
@@ -14,13 +16,16 @@ import {
 } from "lucide-react-native";
 import { type ReactNode, useMemo, useRef } from "react";
 import { Pressable, ScrollView, View } from "react-native";
+import { computeStats } from "../../analysis/dataStats";
 import { DataStatCard } from "../../components/DataStatCard";
+import { dataPages } from "../../config/dataPages";
+import { DatasetBanner } from "../../components/DatasetBanner";
 import { MapPreviewCard } from "../../components/MapPreviewCard";
 import { useDatasetLabel } from "../../components/OfficialNote";
 import { useTourTarget } from "../../components/tourTargets";
 import { Logo, Row, Screen, T } from "../../components/ui";
 import { combine, useFlow } from "../../store/useFlow";
-import { colors, fonts, format, useTheme } from "../../theme";
+import { colors, fonts, useTheme } from "../../theme";
 
 export default function Home() {
   const state = useFlow(),
@@ -29,11 +34,10 @@ export default function Home() {
   const scroll = useRef<React.ComponentRef<typeof ScrollView>>(null);
   const mapTarget = useTourTarget("home-map", scroll);
   const dataTarget = useTourTarget("home-data", scroll);
-  const trafficYears = [
-    ...new Set(data.traffic.map((t) => t.year).filter(Boolean)),
-  ]
-    .sort()
-    .join(", ");
+  const stats = useMemo(
+    () => computeStats(data, state.results),
+    [data, state.results],
+  );
 
   return (
     <Screen scrollRef={scroll} style={{ gap: 26 }}>
@@ -50,6 +54,7 @@ export default function Home() {
           onPress={() => router.push("/welcome")}
         />
       </Row>
+      <DatasetBanner style={{ marginTop: -12 }} />
 
       <View {...mapTarget}>
         <MapPreviewCard />
@@ -64,72 +69,26 @@ export default function Home() {
               : "—"
           }`}
         />
-        <Row style={{ alignItems: "stretch", gap: 12 }}>
-          <DataStatCard
-            icon={Route}
-            value={data.segments.length ? format(data.segments.length) : "—"}
-            label="Road segments"
-            backgroundColor="#dd5f5f"
-          />
-          <DataStatCard
-            icon={Map}
-            value={
-              data.wards.length
-                ? format(new Set(data.wards.map((w) => w.id)).size)
-                : "—"
-            }
-            label="City wards"
-            backgroundColor="#F5AF5B"
-          />
-        </Row>
-        <Row style={{ alignItems: "stretch", gap: 12 }}>
-          <DataStatCard
-            icon={TrafficCone}
-            value={
-              data.summaries?.length
-                ? format(
-                    state.results?.segments.filter(
-                      (s) => s.maxVolume !== undefined,
-                    ).length,
-                  )
-                : data.traffic.length
-                  ? format(data.traffic.length)
-                  : "—"
-            }
-            label={
-              data.summaries?.length
-                ? "Segments with traffic"
-                : "Traffic counts"
-            }
-            detail={trafficYears || undefined}
-            backgroundColor="#f1e17b"
-          />
-          <DataStatCard
-            icon={TriangleAlert}
-            value={
-              data.collisions.length
-                ? format(data.collisions.length)
-                : data.summaries?.length
-                  ? format(
-                      data.summaries.reduce((sum, r) => sum + r.collisions, 0),
-                    )
-                  : "—"
-            }
-            label={
-              !data.collisions.length && data.summaries?.length
-                ? "Reported collisions"
-                : "Collision records"
-            }
-            detail={
-              data.collisions.length
-                ? yearRange(data.collisions.map((record) => record.year))
-                : data.summaries?.length
-                  ? "On verified segments"
-                  : undefined
-            }
-            backgroundColor="#64d87d"
-          />
-        </Row>
+        {/* Each tile opens its detail page (wording in src/config/dataPages.ts). */}
+        {[0, 2, 4].map((start) => (
+          <Row key={start} style={{ alignItems: "stretch", gap: 12 }}>
+            {dataPages.slice(start, start + 2).map((page) => (
+              <DataStatCard
+                key={page.id}
+                icon={tileIcons[page.id] ?? Route}
+                value={stats[page.tile.stat] ?? "—"}
+                label={page.tile.label}
+                backgroundColor={tileColors[page.id] ?? colors.dataSurface}
+                onPress={() =>
+                  router.push({
+                    pathname: "/data/[topic]",
+                    params: { topic: page.id },
+                  })
+                }
+              />
+            ))}
+          </Row>
+        ))}
         <ActionRow
           icon={Upload}
           title="Add new data & re-rank"
@@ -173,7 +132,7 @@ export default function Home() {
               Ask me about the data
             </T>
             <T size={12} style={{ color: colors.darkMuted }}>
-              Offline answers from this analysis
+              Beta · answers from the data in this analysis
             </T>
           </View>
         </Row>
@@ -315,10 +274,21 @@ function ActionRow({
   );
 }
 
-function yearRange(values: (number | undefined)[]) {
-  const years = values.filter((value): value is number => value !== undefined);
-  if (!years.length) return "years unknown";
-  const first = Math.min(...years),
-    last = Math.max(...years);
-  return first === last ? String(first) : `${first}–${last}`;
-}
+// Home tile icons and colors per data page (the four original tile colors,
+// plus two for lane counts and capacity).
+const tileIcons: Record<string, LucideIcon> = {
+  segments: Route,
+  wards: Map,
+  lanes: MapPinned,
+  traffic: TrafficCone,
+  collisions: TriangleAlert,
+  capacity: Gauge,
+};
+const tileColors: Record<string, string> = {
+  segments: "#dd5f5f",
+  wards: "#F5AF5B",
+  lanes: "#8EC5E8",
+  traffic: "#f1e17b",
+  collisions: "#64d87d",
+  capacity: "#C9A7EB",
+};

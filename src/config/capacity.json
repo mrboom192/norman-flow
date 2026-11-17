@@ -1,12 +1,46 @@
 {
-  "2-lane arterial": { "c": 10000, "e": 17100 },
-  "4-lane arterial, undivided": { "c": 22000, "e": 34200 },
-  "4-lane arterial, divided": { "c": 26000, "e": 38000 },
-  "5-lane arterial": { "c": 24000, "e": 36000 },
-  "6-lane arterial, undivided": { "c": 32000, "e": 52300 },
-  "6-lane arterial, divided": { "c": 40000, "e": 58000 },
-  "one-way per lane": { "c": 6000, "e": 11000 },
-  "4-lane expressway": { "c": 52000, "e": 80000 },
-  "6-lane expressway": { "c": 78000, "e": 125000 },
-  "8-lane expressway": { "c": 104000, "e": 165000 }
+  "2-lane arterial": {
+    "c": 10000,
+    "e": 17100
+  },
+  "3-lane arterial (2 lanes + center turn lane)": {
+    "e": 18900,
+    "note": "City of Norman guidance (17,100 + 1,800), not in the ACOG table. Used by CLASSEN BLVD | 04 and GRAY ST | 01."
+  },
+  "4-lane arterial, undivided": {
+    "c": 22000,
+    "e": 34200
+  },
+  "4-lane arterial, divided": {
+    "c": 26000,
+    "e": 38000
+  },
+  "5-lane arterial": {
+    "c": 24000,
+    "e": 36000
+  },
+  "6-lane arterial, undivided": {
+    "c": 32000,
+    "e": 52300
+  },
+  "6-lane arterial, divided": {
+    "c": 40000,
+    "e": 58000
+  },
+  "one-way per lane": {
+    "c": 6000,
+    "e": 11000
+  },
+  "4-lane expressway": {
+    "c": 52000,
+    "e": 80000
+  },
+  "6-lane expressway": {
+    "c": 78000,
+    "e": 125000
+  },
+  "8-lane expressway": {
+    "c": 104000,
+    "e": 165000
+  }
 }

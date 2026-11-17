@@ -9,13 +9,17 @@ import {
   Results,
   Settings,
   RawRow,
+  CapacityPreset,
 } from "../analysis/types";
 import { defaultSettings, runPipeline } from "../analysis/pipeline";
+import { officialPresetId } from "../analysis/capacity";
 import { defaultPrimary } from "../theme/palette";
 export type DatasetFile = {
   /** Older persisted files without a source are user uploads. */
   source?: "base" | "uploaded";
   baseVersion?: string;
+  /** When an uploaded file was imported (ISO date). */
+  importedAt?: string;
   /** Parser version that produced `data` (see preparedParserVersion). */
   parserVersion?: number;
   name: string;
@@ -105,6 +109,8 @@ type State = {
   } | null;
   settings: Settings;
   aliases: Aliases;
+  /** User-created LOS E capacity presets (the official preset is built in). */
+  capacityPresets: CapacityPreset[];
   selected: string | null;
   mapReset: number;
   crashPointsVisible: boolean;
@@ -115,6 +121,17 @@ type State = {
   undo: () => void;
   /** Drop uploads and setting overrides, rerunning on the bundled official files. */
   restoreOfficial: () => void;
+  /**
+   * Menu's destructive Reset map: delete every added file and capacity
+   * override, return to the bundled official results, and reset the map view.
+   * Unlike restoreOfficial it keeps no undo copy.
+   */
+  resetMap: () => void;
+  /** Create or update a custom preset; reruns if it is the active one. */
+  savePreset: (preset: CapacityPreset) => void;
+  deletePreset: (id: string) => void;
+  /** Rank with a preset's capacities ("official" returns to the official view). */
+  applyPreset: (id: string) => void;
   remove: (name: string) => void;
 };
 type SavedState = Pick<
@@ -128,6 +145,7 @@ type SavedState = Pick<
   | "previous"
   | "settings"
   | "aliases"
+  | "capacityPresets"
   | "crashPointsVisible"
 >;
 export const flowStorage = createFlowStorage<SavedState>(Storage, (error) => {
@@ -149,6 +167,7 @@ export const useFlow = create<State>()(
       previous: null,
       settings: defaultSettings,
       aliases: {},
+      capacityPresets: [],
       selected: null,
       mapReset: 0,
       crashPointsVisible: false,
@@ -211,6 +230,46 @@ export const useFlow = create<State>()(
           },
         });
       },
+      resetMap: () => {
+        get().restoreOfficial();
+        set({
+          previous: null,
+          selected: null,
+          mapReset: get().mapReset + 1,
+        });
+      },
+      savePreset: (preset) => {
+        if (preset.id === officialPresetId)
+          throw new Error(
+            "The official preset can't be changed. Use Save as new.",
+          );
+        const state = get();
+        const capacityPresets = [
+          ...state.capacityPresets.filter((p) => p.id !== preset.id),
+          preset,
+        ];
+        set({ capacityPresets });
+        if (state.settings.capacityPreset?.id === preset.id)
+          get().rerun({ ...state.settings, capacityPreset: preset });
+      },
+      deletePreset: (id) => {
+        const state = get();
+        set({
+          capacityPresets: state.capacityPresets.filter((p) => p.id !== id),
+        });
+        if (state.settings.capacityPreset?.id === id)
+          get().applyPreset(officialPresetId);
+      },
+      applyPreset: (id) => {
+        const state = get();
+        const preset =
+          id === officialPresetId
+            ? undefined
+            : state.capacityPresets.find((p) => p.id === id);
+        if (id !== officialPresetId && !preset)
+          throw new Error("That capacity preset no longer exists.");
+        get().rerun({ ...state.settings, capacityPreset: preset });
+      },
       undo: () => {
         const prev = get().previous;
         if (prev) set({ ...prev, previous: null });
@@ -235,7 +294,10 @@ export const useFlow = create<State>()(
           primary:
             !saved.primary || saved.primary.toLowerCase() === "#c2255c"
               ? defaultPrimary
-              : saved.primary,
+              : // The old green failed text contrast; use its darker replacement.
+                saved.primary.toLowerCase() === "#1a8f26"
+                ? "#188523"
+                : saved.primary,
         };
       },
       partialize: (s) => ({
@@ -248,6 +310,7 @@ export const useFlow = create<State>()(
         previous: s.previous,
         settings: s.settings,
         aliases: s.aliases,
+        capacityPresets: s.capacityPresets,
         crashPointsVisible: s.crashPointsVisible,
       }),
       onRehydrateStorage: () => (_state, error) => {
