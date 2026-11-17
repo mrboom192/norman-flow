@@ -1,6 +1,6 @@
 # Bundled base data
 
-The current distribution is a **prepared segment snapshot**, not the raw workbooks described in the original competition brief. The CSV is authoritative for traffic maxima, audited facility capacity and segment collision totals. The two GeoJSON files provide geometry, stable keys, ward memberships and exclusion reasons. Fields duplicated in the map file are not added to the CSV figures. The app recomputes the ward lists from the joined measurements.
+The current distribution is a **prepared segment snapshot**, not the raw workbooks described in the original competition brief. The CSV is authoritative for traffic maxima, audited facility capacity and segment collision totals. The two GeoJSON files provide geometry, stable keys, ward memberships and exclusion reasons. Fields duplicated in the map file are not added to the CSV figures (the GeoJSON `vc` is rounded to 3 decimals and is never used for ranking). These are the official results from the team's Excel tool: the app shows them unchanged, and the ward ranks it derives from the CSV values must equal the CSV's `ward_ranks`, or the import is rejected.
 
 Restart Metro or run an Expo export after changing any base file. To regenerate the checked-in manifest directly, run `node scripts/prepare-base-data.cjs`. Commit the data and manifest together. The build includes these files and startup refreshes changed assets by hash; saved user uploads are retained.
 
@@ -47,10 +47,9 @@ its native Heatmap, with a zoom-adjusted pixel radius constrained by that API.
 Apple Maps uses the same density surface and blur as web.
 The point layer uses one SVG path rather than thousands of native markers.
 
-The ten segment markers use the CSV's published `city_combined_rank`, including
-its ties, and sit halfway along each joined segment's geometry. These labels
-are distinct from the application's recomputed sequential rankings. Existing
-cached summary files are re-parsed to load the published marker ranks.
+The ten numbered hotspot markers are the ten segments with the most crashes
+citywide (`city_coll_rank` 1–10), halfway along each joined segment's geometry.
+They appear with the Hotspots view in Heat mode.
 
 Native Google Maps credentials can be supplied through
 `GOOGLE_MAPS_IOS_API_KEY` and `GOOGLE_MAPS_ANDROID_API_KEY` when building with

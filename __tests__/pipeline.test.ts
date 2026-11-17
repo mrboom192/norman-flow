@@ -133,7 +133,7 @@ it("deduplicates case numbers and excludes collisions without traffic", () => {
   expect(noTraffic.wards[1].combined).toHaveLength(0);
   expect(noTraffic.unmatched[0].reason).toBe("Segment has no traffic count");
 });
-it("uses sequential ranks and keeps ward ranks independent", () => {
+it("shares ranks for ties and keeps ward ranks independent", () => {
   const segments = [
     segment(),
     segment({ id: "B#1", road: "B", wards: [1] }),
@@ -153,7 +153,8 @@ it("uses sequential ranks and keeps ward ranks independent", () => {
       ],
     }),
   );
-  expect(r.wards[1].vc.map((s) => s.vcRank)).toEqual([1, 2, 3]);
+  // A and B have equal V/C, so they share rank 1 and C is 3rd (1, 1, 3).
+  expect(r.wards[1].vc.map((s) => s.vcRank)).toEqual([1, 1, 3]);
   expect(r.wards[2].vc[0].collisionRank).toBe(1);
   for (const ward of Object.values(r.wards)) {
     for (const list of Object.values(ward))

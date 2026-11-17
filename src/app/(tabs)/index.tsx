@@ -16,6 +16,7 @@ import { type ReactNode, useMemo, useRef } from "react";
 import { Pressable, ScrollView, View } from "react-native";
 import { DataStatCard } from "../../components/DataStatCard";
 import { MapPreviewCard } from "../../components/MapPreviewCard";
+import { useDatasetLabel } from "../../components/OfficialNote";
 import { useTourTarget } from "../../components/tourTargets";
 import { Logo, Row, Screen, T } from "../../components/ui";
 import { combine, useFlow } from "../../store/useFlow";
@@ -24,6 +25,7 @@ import { colors, fonts, format, useTheme } from "../../theme";
 export default function Home() {
   const state = useFlow(),
     data = useMemo(() => combine(state.files), [state.files]);
+  const dataset = useDatasetLabel();
   const scroll = useRef<React.ComponentRef<typeof ScrollView>>(null);
   const mapTarget = useTourTarget("home-map", scroll);
   const dataTarget = useTourTarget("home-data", scroll);
@@ -56,7 +58,7 @@ export default function Home() {
       <View {...dataTarget} style={{ gap: 12 }}>
         <SectionHeader
           title="Data in this analysis"
-          subtitle={`Last updated ${
+          subtitle={`${dataset.label} · updated ${
             state.results?.runAt
               ? new Date(state.results.runAt).toLocaleDateString()
               : "—"

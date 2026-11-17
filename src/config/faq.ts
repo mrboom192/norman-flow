@@ -35,7 +35,7 @@ export const faqs: Faq[] = [
     topic: "Rankings",
     keywords: /\btie|tied|same rank|equal/i,
     answer:
-      "Every rank is a unique position (1, 2, 3, 4). Segments with the same value are ordered by their stable segment ID. When two combined scores are equal, the segment with the higher V/C goes first.",
+      "Ties share the best rank, like the official Excel tool: two segments tied for 1st are both #1 and the next is #3 (1, 1, 3). In the combined list, a tie is listed with the higher V/C first.",
   },
   {
     question: "Why is a road in two wards’ lists?",
@@ -83,7 +83,7 @@ export const faqs: Faq[] = [
     keywords:
       /where.*(data|come from)|source|city data|files? (are|is) (included|bundled)/i,
     answer:
-      "The app ships with the City of Norman’s prepared export: a rankings table for the 119 ranked segments, map lines for all 375 segments, the 8 City Council ward boundaries, and recorded crash locations. You can replace or add to any of these from Menu → Data files.",
+      "The app ships with the official 2026 results from the team’s Excel tool: a rankings table for the 119 ranked segments, map lines for all 375 segments, the 8 City Council ward boundaries, and recorded crash locations. The app shows these values unchanged. To update them, import a new results file from Menu.",
   },
   {
     question: "Is my data sent anywhere?",
@@ -119,14 +119,14 @@ export const faqs: Faq[] = [
     topic: "Using the app",
     keywords: /add|upload|import|new file|replace/i,
     answer:
-      "Tap “Add new data & re-rank” on Home or in Menu, or use Files on the map. Choose your files, check the detected columns and preview, then confirm. New traffic years are added; collisions are matched by case number so nothing is counted twice. You can undo the last run from Menu.",
+      "Run the Norman Flow Excel tool (or the Colab notebook) with the new data, then tap “Add new data & re-rank” on Home or in Menu and choose the norman_flow_rankings.csv it creates (plus new segment, ward or crash-point files if they changed). The app checks the file, shows a preview, and updates every screen when you confirm. You can undo the last run, or restore the official 2026 results, from Menu.",
   },
   {
     question: "How do I update the data next year?",
     topic: "Using the app",
     keywords: /update|next year|refresh|rerun|re-run|new year/i,
     answer:
-      "Rerun the team’s Colab notebook or Excel tool. If only the numbers changed, import the new rankings table. If segments, keys or eligibility changed, replace the rankings table, segments and wards files together. The app re-ranks automatically and keeps the previous run so you can undo.",
+      "Don’t edit the base data. Run the team’s Excel tool or Colab notebook with the new traffic and crash data, then import the norman_flow_rankings.csv it creates. Add new norman_segments.geojson and norman_wards.geojson files only if the segments or wards changed. The app checks every ward rank against the file before anything changes, and keeps the previous run so you can undo.",
   },
   {
     question: "How do I export the rankings?",
@@ -140,7 +140,7 @@ export const faqs: Faq[] = [
     topic: "Using the app",
     keywords: /file type|format|csv|kmz|kml|geojson/i,
     answer:
-      "Import traffic counts, collisions and rankings tables as XLSX or CSV. Import road segments and ward boundaries as KML, KMZ or GeoJSON. Rankings export to XLSX. The optional ODOT shapefile and ACOG PDF will be connected when those files are supplied.",
+      "The official update is the results CSV from the Norman Flow Excel tool, optionally with the segments, wards and crash-points GeoJSON files. A crash spreadsheet with Lat/Lon columns can refresh the hotspot map only. Raw traffic and collision spreadsheets and KML/KMZ road files work only under Advanced (unofficial), and those results won’t match the official tool. Rankings export to XLSX.",
   },
   {
     question: "Why 1-mile segments?",

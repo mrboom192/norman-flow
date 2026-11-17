@@ -48,6 +48,23 @@ export function readPrepared(bytes: Uint8Array, source: string): Inputs {
     const rows = XLSX.utils.sheet_to_json<Record<string, unknown>>(
       book.Sheets[book.SheetNames[0]],
     );
+    const required = [
+      "key",
+      "road",
+      "volume",
+      "facility",
+      "lane_source",
+      "capacity",
+      "vc",
+      "collisions",
+      "ward_ranks",
+    ];
+    const header = new Set(Object.keys(rows[0] ?? {}));
+    const missing = required.filter((c) => !header.has(c));
+    if (!rows.length || missing.length)
+      throw new Error(
+        `The results file is missing ${missing.length ? "column" + (missing.length > 1 ? "s " : " ") + missing.join(", ") : "rows"}. Export it again from the Norman Flow Excel tool.`,
+      );
     data.summaries = rows.map((row): SegmentSummary => {
       const id = unique(name(row.key, "segment key")),
         volume = num(row.volume, "volume"),
@@ -59,13 +76,28 @@ export function readPrepared(bytes: Uint8Array, source: string): Inputs {
         Math.abs(volume / capacity - num(row.vc, "V/C")) > 0.000001
       )
         throw new Error("Inconsistent metrics for " + id);
+      const wardRanks: Record<number, number> = {};
+      for (const [, ward, rank] of String(row.ward_ranks ?? "").matchAll(
+        /Ward\s*([1-8])\s*:\s*(\d+)/gi,
+      ))
+        wardRanks[Number(ward)] = Number(rank);
+      if (!Object.keys(wardRanks).length)
+        throw new Error("Missing ward ranks for " + id);
+      const optionalRank = (v: unknown, label: string) =>
+        v == null || String(v).trim() === "" ? undefined : num(v, label, 1);
       return {
         id,
-        cityCombinedRank:
-          row.city_combined_rank == null ||
-          String(row.city_combined_rank).trim() === ""
-            ? undefined
-            : num(row.city_combined_rank, "published combined rank", 1),
+        vc: num(row.vc, "V/C"),
+        wardRanks,
+        cityVcRank: optionalRank(row.city_vc_rank, "citywide V/C rank"),
+        cityCollisionRank: optionalRank(
+          row.city_coll_rank,
+          "citywide collision rank",
+        ),
+        cityCombinedRank: optionalRank(
+          row.city_combined_rank,
+          "published combined rank",
+        ),
         volume,
         capacity,
         collisions,
@@ -148,11 +180,9 @@ export function readPrepared(bytes: Uint8Array, source: string): Inputs {
       start: geometry[0],
       end: geometry[geometry.length - 1],
       geometry,
-      lanes: match
-        ? Number(match[1]) + Number(/center turn lane/i.test(laneText))
-        : null,
+      lanes: match ? Number(match[1]) : null,
       laneCoverage: null,
-      travelDirection: /one-way/i.test(laneText) ? "one-way" : "",
+      travelDirection: /one-way/i.test(laneText) ? "one-way" : "two-way",
       rankable: !status.toLowerCase().includes("collector"),
       preparedStatus: status,
       publishedRanked: p.ranked,

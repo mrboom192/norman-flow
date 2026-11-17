@@ -60,6 +60,13 @@ export const colors = {
   dataSurface: "#F5F5F5",
   dataInk: "#171717",
   dataMuted: "#1C1C1C",
+  // Heat-mode map views. V/C runs light to dark red; collisions light to
+  // dark purple so the two never read as the same metric; combined uses four
+  // rank tiers (top 3, 4–5, 6–10, 11+), darkest for the best ranks.
+  vcScale: ["#FDE0D6", "#F4A582", "#E0603F", "#B2182B", "#67001F"],
+  collisionScale: ["#EFE3F6", "#CDA5E0", "#A464C4", "#74309A", "#46105F"],
+  combinedTiers: ["#67001F", "#B2182B", "#E0603F", "#F4A582"],
+  unrankedRoad: "#B9B9B9",
   // Rank badges for 1st, 2nd and 3rd. Dark ink text passes 4.5:1 on all three.
   medals: ["#F2C230", "#C9CED6", "#D08A4E"],
   medalBorders: ["#B8890F", "#8E96A3", "#9A5A26"],

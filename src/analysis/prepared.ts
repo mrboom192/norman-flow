@@ -3,6 +3,11 @@ export const rankingsName = "norman_flow_rankings.csv";
 export const segmentLayer = "norman_segments.geojson";
 export const wardLayer = "norman_wards.geojson";
 export const crashLayer = "norman_crash_points.geojson";
+/**
+ * Bump when parsing of the prepared files changes, so startup re-parses cached
+ * base files. Version 2: ward_ranks, full-precision vc, city ranks, lane text.
+ */
+export const preparedParserVersion = 2;
 export function validateJoin(segments: Segment[], summaries: SegmentSummary[]) {
   const expected = new Set(
     segments.filter((s) => s.publishedRanked).map((s) => s.id),

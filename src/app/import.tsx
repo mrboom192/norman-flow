@@ -1,7 +1,15 @@
 import { useMemo, useState } from "react";
 import { View, ActivityIndicator, StyleSheet } from "react-native";
 import { router } from "expo-router";
-import { X, Upload, Check } from "lucide-react-native";
+import {
+  Check,
+  FlaskConical,
+  RotateCcw,
+  ShieldCheck,
+  TriangleAlert,
+  Upload,
+  X,
+} from "lucide-react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import {
   Button,
@@ -11,9 +19,12 @@ import {
   Row,
   Screen,
   T,
+  Toggle,
 } from "../components/ui";
-import { useTheme } from "../theme";
-import { pickFiles, parseFile, Picked } from "../services/files";
+import { OfficialNote } from "../components/OfficialNote";
+import { runPipeline } from "../analysis/pipeline";
+import { fonts, useTheme } from "../theme";
+import { crashYears, parseFile, pickFiles, Picked } from "../services/files";
 import { MappingError, Aliases } from "../analysis/parse/columns";
 import { combine, DatasetFile, flowStorage, useFlow } from "../store/useFlow";
 // Let React commit and paint before starting synchronous workbook parsing or analysis.
@@ -32,7 +43,8 @@ export default function Import() {
     [mapping, setMapping] = useState<MappingError | null>(null),
     [aliases, setAliases] = useState<Aliases>(state.aliases),
     [kind, setKind] = useState<"traffic" | "collisions">("traffic"),
-    [stage, setStage] = useState("choose");
+    [stage, setStage] = useState("choose"),
+    [advanced, setAdvanced] = useState(false);
   async function parse(
     files: Picked[],
     mappings: Aliases,
@@ -48,8 +60,12 @@ export default function Import() {
         setProgress(`Checking ${label}`);
         await paintLoadingScreen();
         next.push(
-          await parseFile(f, mappings, force, (percent) =>
-            setProgress(`Checking ${label} · ${percent}%`),
+          await parseFile(
+            f,
+            mappings,
+            force,
+            (percent) => setProgress(`Checking ${label} · ${percent}%`),
+            { advanced },
           ),
         );
       }
@@ -99,7 +115,10 @@ export default function Import() {
               parsed.some((p) => p.data.segments.length) &&
               f.data.segments.length
             ) &&
-            !(parsed.some((p) => p.data.wards.length) && f.data.wards.length)),
+            !(parsed.some((p) => p.data.wards.length) && f.data.wards.length) &&
+            // A new results or crash-points file replaces the earlier upload.
+            !(parsed.some((p) => p.data.summaries) && f.data.summaries) &&
+            !(parsed.some((p) => p.data.crashPoints) && f.data.crashPoints)),
       ),
       ...parsed,
     ],
@@ -107,6 +126,26 @@ export default function Import() {
   );
   const previous = useMemo(() => combine(state.files), [state.files]),
     next = useMemo(() => combine(nextFiles), [nextFiles]);
+  // Run every check before anything is saved; a failed check changes nothing.
+  const check = useMemo(() => {
+    if (stage !== "preview") return null;
+    if (
+      parsed.some((f) => f.data.segments.length && !f.data.traffic.length) &&
+      !next.summaries &&
+      !advanced
+    )
+      return {
+        error:
+          "New road segments need the matching results file. Import norman_flow_rankings.csv from the same Excel tool run.",
+      };
+    try {
+      return { results: runPipeline(next, state.settings) };
+    } catch (e) {
+      return { error: e instanceof Error ? e.message : String(e) };
+    }
+  }, [stage, parsed, next, advanced, state.settings]);
+  const newResults = parsed.some((f) => f.data.summaries),
+    newCrashes = parsed.some((f) => f.data.crashPoints);
   async function confirm() {
     if (busy) return;
     setBusy(true);
@@ -140,10 +179,7 @@ export default function Import() {
             }}
           />
         </Row>
-        <T muted>
-          New files, fresh rankings. Your original records stay intact, and you
-          can undo the last run.
-        </T>
+        <OfficialNote />
         <Card>
           <View
             style={{
@@ -161,9 +197,9 @@ export default function Import() {
               Bring your files together
             </T>
             <T muted size={13} style={{ textAlign: "center" }}>
-              Crash locations: norman_crash_points.geojson{"\n"}Traffic counts
-              and collisions: CSV or XLSX{"\n"}Road segments and wards: KML or
-              KMZ
+              {advanced
+                ? "Raw traffic counts and collisions: CSV or XLSX\nRoad segments and wards: KML, KMZ or GeoJSON"
+                : "Required: norman_flow_rankings.csv\nOptional: norman_segments.geojson, norman_wards.geojson, norman_crash_points.geojson (or a crash sheet with Lat/Lon, for the hotspot map)"}
             </T>
             <Button
               label={
@@ -176,6 +212,45 @@ export default function Import() {
             />
           </View>
         </Card>
+        <Row style={{ gap: 12, minHeight: 56 }}>
+          <FlaskConical size={20} color={c.muted} />
+          <View style={{ flex: 1 }}>
+            <T size={14} style={{ fontFamily: fonts.bold }}>
+              Advanced (unofficial)
+            </T>
+            <T muted size={12}>
+              Recalculate from raw traffic and crash spreadsheets in the app.
+            </T>
+          </View>
+          <Toggle
+            accessibilityLabel="Advanced (unofficial) import"
+            value={advanced}
+            disabled={busy}
+            onValueChange={(on) => {
+              setAdvanced(on);
+              setParsed([]);
+              setStage("choose");
+            }}
+          />
+        </Row>
+        {advanced && (
+          <Row
+            style={{
+              gap: 10,
+              padding: 12,
+              borderRadius: 16,
+              backgroundColor: c.chipTint,
+            }}
+          >
+            <TriangleAlert size={18} color={c.primaryDeep} />
+            <T size={12} style={{ flex: 1, color: c.primaryDeep }}>
+              Results calculated in the app use different rules from the
+              official Excel tool (for example, crash crediting at intersections
+              and the team’s lane checks), so they won’t match the official
+              rankings.
+            </T>
+          </Row>
+        )}
         {Boolean(error) && (
           <Card>
             <T
@@ -261,6 +336,63 @@ export default function Import() {
                 </View>
               ))}
             </Card>
+            {check?.error ? (
+              <Card>
+                <Row style={{ justifyContent: "flex-start", gap: 10 }}>
+                  <TriangleAlert size={20} color={c.primaryDeep} />
+                  <T heading size={19}>
+                    This file can’t be used
+                  </T>
+                </Row>
+                <T size={13} accessibilityLiveRegion="polite">
+                  {check.error}
+                </T>
+                <T muted size={12}>
+                  Nothing has been changed. Your current rankings are still in
+                  place.
+                </T>
+              </Card>
+            ) : check?.results ? (
+              <Card>
+                <Row style={{ justifyContent: "flex-start", gap: 10 }}>
+                  <ShieldCheck size={20} color={c.ink} />
+                  <T heading size={19}>
+                    {check.results.official
+                      ? "Official results check passed"
+                      : "Unofficial results"}
+                  </T>
+                </Row>
+                <T muted size={12}>
+                  {check.results.official
+                    ? "Every ward rank matches the file’s ward_ranks, and every V/C equals volume ÷ capacity."
+                    : "These rankings are calculated in the app and won’t match the official Excel tool."}
+                </T>
+                <T size={13}>
+                  {
+                    new Set(
+                      Object.values(check.results.wards).flatMap((w) =>
+                        w.vc.map((s) => s.id),
+                      ),
+                    ).size
+                  }{" "}
+                  segments ranked
+                </T>
+                <View
+                  style={{ flexDirection: "row", flexWrap: "wrap", gap: 6 }}
+                >
+                  {Object.entries(check.results.wards).map(([ward, lists]) => (
+                    <Chip key={ward} label={`W${ward}: ${lists.vc.length}`} />
+                  ))}
+                </View>
+                {newResults && !newCrashes && (
+                  <T muted size={12}>
+                    Hotspot layer:{" "}
+                    {crashYears(next.crashPoints ?? []).slice(3) || "earlier"}{" "}
+                    data. Add a crash points file to update it.
+                  </T>
+                )}
+              </Card>
+            ) : null}
             <Card>
               <T heading size={20}>
                 What changes
@@ -313,7 +445,7 @@ export default function Import() {
               <Button
                 label={busy ? "Running analysis…" : "Confirm & re-rank"}
                 onPress={confirm}
-                disabled={busy}
+                disabled={busy || Boolean(check?.error)}
               />
             </Card>
           </>
@@ -324,15 +456,20 @@ export default function Import() {
               A few taps, no manual cleanup
             </T>
             <T muted size={13}>
-              1. Select one or more raw files.{"\n"}2. Check the file preview
-              and column matches.{"\n"}3. Confirm to calculate all eight ward
-              lists.
+              {advanced
+                ? "1. Select raw traffic, crash or road files.\n2. Check the preview and column matches.\n3. Confirm to recalculate all eight ward lists in the app."
+                : "1. Run the Norman Flow Excel tool (or the Colab notebook) with the new data.\n2. Select the norman_flow_rankings.csv it creates, plus any new map files.\n3. Check the preview, then confirm to update every screen."}
             </T>
-            <T muted size={12}>
-              Base files are included when available. Your uploaded road and
-              ward layers take precedence; new traffic years add to the
-              analysis.
-            </T>
+            <Button
+              outline
+              icon={RotateCcw}
+              label="Restore official 2026 results"
+              disabled={busy}
+              onPress={() => {
+                state.restoreOfficial();
+                router.back();
+              }}
+            />
           </Card>
         )}
       </Screen>

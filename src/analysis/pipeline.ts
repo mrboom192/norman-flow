@@ -155,8 +155,18 @@ export function runPipeline(
     }
   }
   segments.forEach((s) => {
-    if (s.maxVolume !== undefined && s.capacity)
-      s.vc = Math.round((s.maxVolume / s.capacity) * 100) / 100;
+    if (s.maxVolume === undefined || !s.capacity) return;
+    const row = summaryById.get(s.id);
+    // Official results keep the file's full-precision V/C (display rounds to 2
+    // decimals). Raw-data runs keep the legacy rule: round to 2 decimals, then rank.
+    s.vc =
+      row?.vc !== undefined &&
+      row.volume === s.maxVolume &&
+      row.capacity === s.capacity
+        ? row.vc
+        : inputs.summaries?.length
+          ? s.maxVolume / s.capacity
+          : Math.round((s.maxVolume / s.capacity) * 100) / 100;
   });
   const collisions = [
     ...new Map(inputs.collisions.map((c) => [c.id, c])).values(),
@@ -194,9 +204,36 @@ export function runPipeline(
   for (let ward = 1; ward <= 8; ward++) {
     result.wards[ward] = rankSegments(
       segments.filter((s) => s.wards.includes(ward)),
-      Boolean(inputs.summaries?.length),
     );
   }
+  // Official mode: every ranked value comes unchanged from the results file.
+  // Then the calculated combined ward ranks must equal the file's ward_ranks.
+  result.official =
+    Boolean(inputs.summaries?.length) &&
+    // Results files saved by an older app version lack ward_ranks to check.
+    inputs.summaries!.every((r) => r.wardRanks) &&
+    !inputs.traffic.length &&
+    !inputs.collisions.length &&
+    segments.every((s) => {
+      const row = summaryById.get(s.id);
+      return (
+        !row ||
+        (s.maxVolume === row.volume &&
+          s.capacity === row.capacity &&
+          s.collisions === row.collisions)
+      );
+    });
+  if (result.official)
+    for (const row of inputs.summaries!)
+      for (const [ward, expected] of Object.entries(row.wardRanks)) {
+        const actual = result.wards[Number(ward)]?.combined.find(
+          (s) => s.id === row.id,
+        )?.combinedRank;
+        if (actual !== expected)
+          throw new Error(
+            `Ward rank check failed for ${row.id} in Ward ${ward}: the file says ${expected}, but its V/C and collision ranks give ${actual ?? "no rank"}. Re-export the results from the Norman Flow Excel tool.`,
+          );
+      }
   result.diagnostics.countsUnmatched = result.unmatched.filter(
     (r) => r.kind === "Traffic",
   ).length;

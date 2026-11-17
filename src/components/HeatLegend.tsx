@@ -53,7 +53,7 @@ export function HeatLegend({
           {format(crashCount)} crash locations · Equal weight · ~200 m radius
         </T>
         <T muted size={11}>
-          Numbered markers: published city combined ranks 1–10
+          Numbered markers: the 10 segments with the most crashes citywide
         </T>
         {!crashCount && (
           <T muted size={11}>

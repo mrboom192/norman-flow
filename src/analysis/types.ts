@@ -73,6 +73,12 @@ export type RankKind = "combined" | "vc" | "collisions";
 export type CapacityTable = Record<string, { c: number; e: number }>;
 export type SegmentSummary = {
   id: string;
+  /** Full-precision V/C from the results file (volume ÷ capacity). */
+  vc: number;
+  /** Official combined rank in each ward the segment touches. */
+  wardRanks: Record<number, number>;
+  cityVcRank?: number;
+  cityCollisionRank?: number;
   cityCombinedRank?: number;
   volume: number;
   collisions: number;
@@ -108,6 +114,8 @@ export type Settings = {
 };
 export type Results = {
   rankingVersion?: number;
+  /** True when every ranked value comes unchanged from the official results file. */
+  official?: boolean;
   runAt: string;
   segments: SegmentResult[];
   wards: Record<number, Record<RankKind, SegmentResult[]>>;

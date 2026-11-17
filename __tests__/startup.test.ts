@@ -95,9 +95,15 @@ it("loads base files once and retains legacy saved uploads", async () => {
   await flowStorage.flush();
 });
 it("uses cached base files without parsing and drops assets removed from the build", async () => {
+  const { preparedParserVersion } = require("../src/analysis/prepared");
   const { initializeData, useFlow, baseAssets, parseFile, file, flowStorage } =
     setup();
-  const cached = { ...file("base.csv"), source: "base", baseVersion: "one" };
+  const cached = {
+    ...file("base.csv"),
+    source: "base",
+    baseVersion: "one",
+    parserVersion: preparedParserVersion,
+  };
   useFlow.setState({ files: [cached, { ...cached, name: "removed.csv" }] });
   baseAssets.push({ name: "base.csv", version: "one", module: 1 });
   expect(await initializeData(jest.fn())).toEqual([]);
@@ -144,4 +150,16 @@ it("prefers uploaded geometry, merges collision IDs and falls back after removal
     visibleGeometry([{ ...upload, visible: false }, base]).segments,
   ).toEqual([]);
   expect(visibleGeometry([base]).segments).toEqual(base.data.segments);
+});
+
+it("re-parses a cached base file from an older parser version", async () => {
+  const { initializeData, useFlow, baseAssets, parseFile, file, flowStorage } =
+    setup();
+  const stale = { ...file("base.csv"), source: "base", baseVersion: "one" };
+  useFlow.setState({ files: [stale] });
+  parseFile.mockResolvedValue(file("base.csv"));
+  baseAssets.push({ name: "base.csv", version: "one", module: 1 });
+  await initializeData(jest.fn());
+  expect(parseFile).toHaveBeenCalled();
+  await flowStorage.flush();
 });

@@ -7,7 +7,14 @@ import {
   heatRadiusPixels,
   crashClusters,
 } from "../analysis/crashMap";
-import { heatColor, heatRange, heatValue } from "../analysis/heatmap";
+import {
+  type MapMetric,
+  rankBadges,
+  rankedRows,
+  segmentStyle,
+  valueRange,
+  wardBounds,
+} from "../analysis/mapViews";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Platform, View } from "react-native";
 import MapView, {
@@ -29,7 +36,9 @@ type MapProps = {
   segments?: SegmentResult[];
   zoom?: number;
   mode?: string;
-  metric?: "vc" | "collisions";
+  metric?: MapMetric;
+  scopeWard?: number;
+  crashYear?: number;
   crashSegmentIds?: Set<string>;
   /** Web-only; native fits the camera to the selected segment itself. */
   onZoomTo?: (zoom: number) => void;
@@ -40,7 +49,9 @@ export function RoadMap({
   segments,
   zoom = 1,
   mode = "Map",
-  metric = "vc",
+  metric = "combined",
+  scopeWard,
+  crashYear,
   crashSegmentIds,
 }: MapProps) {
   const c = useTheme(),
@@ -53,8 +64,11 @@ export function RoadMap({
     return state.results?.segments.filter((s) => visible.has(s.id)) ?? [];
   }, [segments, state.results, data.segments]);
   const crashPoints = useMemo(
-    () => visibleCrashPoints(state.files, crashSegmentIds),
-    [state.files, crashSegmentIds],
+    () =>
+      visibleCrashPoints(state.files, crashSegmentIds).filter(
+        (p) => crashYear === undefined || p.year === crashYear,
+      ),
+    [state.files, crashSegmentIds, crashYear],
   );
   const markers = useMemo(
     () => topSegmentMarkers(state.files, roads),
@@ -65,7 +79,29 @@ export function RoadMap({
     (Constants.expoConfig?.extra?.googleMapsIosEnabled === true &&
       Constants.executionEnvironment !== "storeClient");
   const heatMode = !preview && mode === "Heat";
-  const crashHeat = heatMode && metric === "collisions";
+  const crashHeat = heatMode && metric === "crashes";
+  const rankView = heatMode && metric !== "crashes" ? metric : undefined;
+  const wardScope = rankView ? scopeWard : undefined;
+  // Ranked roads for this view; recomputed from the loaded results so a new
+  // import recolors the map immediately.
+  const ranked = useMemo(() => {
+    if (!rankView) return undefined;
+    const visible = new Set(roads.map((s) => s.id));
+    return rankedRows(state.results, rankView, scopeWard).filter((r) =>
+      visible.has(r.id),
+    );
+  }, [rankView, roads, state.results, scopeWard]);
+  const styles = useMemo(() => {
+    if (!ranked || !rankView) return undefined;
+    const range = valueRange(ranked);
+    return new Map(
+      ranked.map((r) => [r.id, segmentStyle(r, rankView, range, c)]),
+    );
+  }, [ranked, rankView, c]);
+  const badges = useMemo(
+    () => (ranked && scopeWard !== undefined ? rankBadges(ranked) : []),
+    [ranked, scopeWard],
+  );
   const weightedPoints = useMemo(
     () =>
       crashHeat && googleMaps
@@ -84,8 +120,7 @@ export function RoadMap({
         : undefined,
     [crashHeat, googleMaps, crashPoints, c.crashHeatColors],
   );
-  const crashDots = heatMode && state.crashPointsVisible;
-  const vcHeat = heatMode && metric === "vc";
+  const crashDots = crashHeat && state.crashPointsVisible;
   const [ready, setReady] = useState(false);
   // Segments picked on the map pan only; selections from elsewhere zoom to fit.
   const tapped = useRef<string | null>(null);
@@ -109,7 +144,6 @@ export function RoadMap({
     () => locationIndex?.({ ...region, ...mapSize }) ?? [],
     [locationIndex, region, mapSize],
   );
-  const range = heatRange(roads, metric);
   const selected = roads.find((s) => s.id === state.selected);
   const camera = useRef(region);
   const last = useRef({
@@ -169,6 +203,36 @@ export function RoadMap({
     camera.current = next;
     map.current?.animateToRegion(next, 250);
   }, [preview, ready, zoom, state.mapReset, selected, mapSize.height]);
+  // Zoom to the scoped ward (or back to the whole city) in Heat mode.
+  const lastScope = useRef<number | undefined>(undefined);
+  useEffect(() => {
+    if (preview || !ready || wardScope === lastScope.current) return;
+    lastScope.current = wardScope;
+    const box = wardScope ? wardBounds(data.wards, wardScope) : undefined;
+    if (!box) {
+      const city = {
+        latitude: 35.2226,
+        longitude: -97.4395,
+        latitudeDelta: 0.25,
+        longitudeDelta: 0.25,
+      };
+      camera.current = city;
+      map.current?.animateToRegion(city, 250);
+      return;
+    }
+    map.current?.fitToCoordinates(
+      box.map(([latitude, longitude]) => ({ latitude, longitude })),
+      {
+        edgePadding: {
+          top: 220,
+          right: 60,
+          bottom: Math.round(mapSize.height * 0.45),
+          left: 40,
+        },
+        animated: true,
+      },
+    );
+  }, [preview, ready, wardScope, data.wards, mapSize.height]);
   return (
     <View style={{ flex: 1 }}>
       <MapView
@@ -212,11 +276,20 @@ export function RoadMap({
               )}
             fillColor={
               c.wardFills[(w.id - 1) % c.wardFills.length] +
-              Math.round(c.wardFillOpacity * 255)
+              Math.round(
+                // In a ward view, the other wards fade so the focus ward stands out.
+                c.wardFillOpacity *
+                  (wardScope && w.id !== wardScope ? 0.3 : 1) *
+                  255,
+              )
                 .toString(16)
                 .padStart(2, "0")
             }
-            strokeColor={c.wardStrokes[(w.id - 1) % c.wardStrokes.length]}
+            strokeColor={
+              wardScope && w.id !== wardScope
+                ? c.divider
+                : c.wardStrokes[(w.id - 1) % c.wardStrokes.length]
+            }
             strokeWidth={c.wardStrokeWidth}
           />
         ))}
@@ -238,59 +311,45 @@ export function RoadMap({
             }}
           />
         )}
-        {vcHeat &&
-          c.heatGlowLayers.map((layer) =>
-            roads.map((s) => {
-              const value = heatValue(s, metric);
-              if (value === undefined) return null;
-              const color = heatColor(value, range, c.heatColors, c.muted);
-              return (
-                <Polyline
-                  key={`heat-${layer.width}-${s.id}`}
-                  coordinates={s.geometry.map(([latitude, longitude]) => ({
-                    latitude,
-                    longitude,
-                  }))}
-                  strokeColor={
-                    color +
-                    Math.round(layer.opacity * 255)
-                      .toString(16)
-                      .padStart(2, "0")
-                  }
-                  strokeWidth={layer.width}
-                  lineCap="round"
-                  lineJoin="round"
-                  tappable={false}
-                  zIndex={1}
-                />
-              );
-            }),
-          )}
-        {roads.map((s) => (
-          <Polyline
-            key={s.id}
-            coordinates={s.geometry.map(([latitude, longitude]) => ({
-              latitude,
-              longitude,
-            }))}
-            strokeColor={
-              s.id === state.selected
-                ? c.primary
-                : vcHeat
-                  ? heatColor(
-                      heatValue(s, metric),
-                      range,
-                      c.heatColors,
-                      c.muted,
-                    )
+        {roads.flatMap((s) => {
+          const style = styles?.get(s.id);
+          const coordinates = s.geometry.map(([latitude, longitude]) => ({
+            latitude,
+            longitude,
+          }));
+          // Ranking views: unranked roads thin gray; better tiers thicker and on top.
+          const width = styles ? (style ? [7, 6, 5, 4][style.tier] : 1.5) : 3;
+          const zIndex = style ? 2 + (3 - style.tier) * 0.1 : 2;
+          return [
+            ...(style?.overCapacity
+              ? [
+                  <Polyline
+                    key={`${s.id}-over`}
+                    coordinates={coordinates}
+                    strokeColor={c.ink}
+                    strokeWidth={width + 4}
+                    lineCap="round"
+                    lineJoin="round"
+                    tappable={false}
+                    zIndex={zIndex - 0.05}
+                  />,
+                ]
+              : []),
+            <Polyline
+              key={s.id}
+              coordinates={coordinates}
+              strokeColor={
+                styles
+                  ? (style?.color ?? c.unrankedRoad)
                   : segmentLengthColor(s.lengthMi)
-            }
-            strokeWidth={s.id === state.selected ? 6 : 3}
-            zIndex={2}
-            tappable
-            onPress={() => select(s.id)}
-          />
-        ))}
+              }
+              strokeWidth={width}
+              zIndex={zIndex}
+              tappable
+              onPress={() => select(s.id)}
+            />,
+          ];
+        })}
         {/* Draw the selected road on top, with a dark casing so it stands out on any ward fill. */}
         {selected &&
           !preview &&
@@ -346,47 +405,60 @@ export function RoadMap({
             </View>
           </Marker>
         ))}
-        {!preview &&
-          markers.map((marker) => (
-            <Marker
-              key={`rank-${marker.id}`}
-              coordinate={{
-                latitude: marker.point[0],
-                longitude: marker.point[1],
+        {[
+          ...(crashHeat
+            ? markers.map((m) => ({
+                ...m,
+                fill: c.crashMarker,
+                title: `Citywide crash rank ${m.rank}`,
+              }))
+            : []),
+          ...badges.map((b) => ({
+            ...b,
+            road: roads.find((s) => s.id === b.id)?.road ?? "",
+            fill: c.ink,
+            title: `Ward ${scopeWard} rank ${b.rank}`,
+          })),
+        ].map((marker) => (
+          <Marker
+            key={`${marker.title}-${marker.id}`}
+            coordinate={{
+              latitude: marker.point[0],
+              longitude: marker.point[1],
+            }}
+            title={marker.title}
+            description={marker.road}
+            zIndex={10}
+            tracksViewChanges={false}
+            onPress={() => select(marker.id)}
+          >
+            <View
+              style={{
+                width: 44,
+                height: 44,
+                alignItems: "center",
+                justifyContent: "center",
               }}
-              title={`Published city combined rank ${marker.rank}`}
-              description={marker.road}
-              zIndex={10}
-              tracksViewChanges={false}
-              onPress={() => select(marker.id)}
             >
               <View
                 style={{
-                  width: 44,
-                  height: 44,
+                  width: 30,
+                  height: 30,
+                  borderRadius: 15,
+                  backgroundColor: marker.fill,
+                  borderWidth: 2,
+                  borderColor: c.white,
                   alignItems: "center",
                   justifyContent: "center",
                 }}
               >
-                <View
-                  style={{
-                    width: 30,
-                    height: 30,
-                    borderRadius: 15,
-                    backgroundColor: c.crashMarker,
-                    borderWidth: 2,
-                    borderColor: c.white,
-                    alignItems: "center",
-                    justifyContent: "center",
-                  }}
-                >
-                  <T size={13} style={{ color: c.white }}>
-                    {marker.rank}
-                  </T>
-                </View>
+                <T size={13} style={{ color: c.white }}>
+                  {marker.rank}
+                </T>
               </View>
-            </Marker>
-          ))}
+            </View>
+          </Marker>
+        ))}
       </MapView>
       {preview && !roads.length && (
         <View

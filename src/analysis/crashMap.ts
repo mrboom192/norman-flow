@@ -33,25 +33,32 @@ export function topSegmentMarkers(files: MapFile[], segments: Segment[]) {
     layers[layers.length - 1];
   if (!active?.visible) return [];
   const byId = new Map(segments.map((s) => [s.id, s]));
+  // The ten segments with the most crashes citywide (city_coll_rank 1–10).
   return (active.data.summaries ?? [])
     .filter(
       (s) =>
-        Number.isInteger(s.cityCombinedRank) &&
-        s.cityCombinedRank! >= 1 &&
-        s.cityCombinedRank! <= 10 &&
+        Number.isInteger(s.cityCollisionRank) &&
+        s.cityCollisionRank! >= 1 &&
+        s.cityCollisionRank! <= 10 &&
         byId.has(s.id),
     )
     .sort(
       (a, b) =>
-        a.cityCombinedRank! - b.cityCombinedRank! || a.id.localeCompare(b.id),
+        a.cityCollisionRank! - b.cityCollisionRank! || a.id.localeCompare(b.id),
     )
     .slice(0, 10)
-    .map((s) => ({
-      id: s.id,
-      rank: s.cityCombinedRank!,
-      road: byId.get(s.id)!.road,
-      point: segmentMidpoint(byId.get(s.id)!),
-    }));
+    .map((s) => {
+      const segment = byId.get(s.id)!;
+      return {
+        id: s.id,
+        rank: s.cityCollisionRank!,
+        road: segment.road,
+        from: segment.from,
+        to: segment.to,
+        collisions: s.collisions,
+        point: segmentMidpoint(segment),
+      };
+    });
 }
 
 /** Equal-weight compact Gaussian kernels in a local metric projection. */

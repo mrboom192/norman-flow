@@ -11,6 +11,7 @@ import {
   Moon,
   Palette,
   RotateCcw,
+  ShieldCheck,
   SlidersHorizontal,
   Trash2,
   Undo2,
@@ -18,6 +19,7 @@ import {
 } from "lucide-react-native";
 import { type ReactNode, useRef, useState } from "react";
 import { Linking, Pressable, ScrollView, View } from "react-native";
+import { OfficialNote } from "../../components/OfficialNote";
 import { Sheet } from "../../components/Sheet";
 import { useTourTarget } from "../../components/tourTargets";
 import {
@@ -104,6 +106,9 @@ export default function Menu() {
 
         <View {...dataTarget}>
           <Section title="Data">
+            <View style={{ marginBottom: 10 }}>
+              <OfficialNote />
+            </View>
             <MenuRow
               icon={FolderOpen}
               title="Data files"
@@ -117,8 +122,19 @@ export default function Menu() {
             <MenuRow
               icon={Upload}
               title="Add new data & re-rank"
-              subtitle="CSV, XLSX, KML, KMZ or GeoJSON"
+              subtitle="Import the results file from the Excel tool"
               onPress={() => router.push("/import")}
+            />
+            <MenuRow
+              icon={ShieldCheck}
+              title="Restore official 2026 results"
+              subtitle="Reload the bundled results and clear uploads"
+              onPress={() => {
+                state.restoreOfficial();
+                setStatus(
+                  "Official 2026 results restored. Undo last analysis run brings back your previous data.",
+                );
+              }}
             />
             {state.previous && (
               <MenuRow

@@ -1,7 +1,11 @@
 import type { RankKind, SegmentResult } from "./types";
 
-export const rankingVersion = 2;
+// Version 3: official tie rule (shared ranks, 1, 1, 3) and full-precision V/C.
+export const rankingVersion = 3;
 
+// Competition ranking, matching the team's Excel tool: rank = 1 + the number of
+// rows with a strictly better value, so equal values share the best rank.
+// Display order within a tie: higher V/C first for combined, then segment ID.
 function ranks(
   rows: SegmentResult[],
   value: (r: SegmentResult) => number,
@@ -15,14 +19,14 @@ function ranks(
       a.id.localeCompare(b.id),
   );
   rows.forEach((r, i) => {
-    r[field] = i + 1;
+    r[field] =
+      i > 0 && value(r) === value(rows[i - 1]) ? rows[i - 1][field] : i + 1;
   });
   return rows;
 }
 // Rank a scope independently; never mutate the pipeline's segment or ward rows.
 export function rankSegments(
   segments: SegmentResult[],
-  fullPrecision = segments.some((s) => Boolean(s.summarySource)),
 ): Record<RankKind, SegmentResult[]> {
   const rows = [...new Map(segments.map((s) => [s.id, s])).values()]
     .filter((s) => s.rankable && s.maxVolume !== undefined)
@@ -36,7 +40,7 @@ export function rankSegments(
     }));
   const vc = ranks(
     rows.filter((s) => s.vc !== undefined),
-    (r) => (fullPrecision ? r.maxVolume! / r.capacity! : r.vc!),
+    (r) => r.vc!,
     "vcRank",
   );
   const collisions = ranks(

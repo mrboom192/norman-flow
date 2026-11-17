@@ -16,6 +16,8 @@ export type DatasetFile = {
   /** Older persisted files without a source are user uploads. */
   source?: "base" | "uploaded";
   baseVersion?: string;
+  /** Parser version that produced `data` (see preparedParserVersion). */
+  parserVersion?: number;
   name: string;
   type: string;
   summary: string;
@@ -111,6 +113,8 @@ type State = {
   commit: (files: DatasetFile[]) => void;
   rerun: (settings: Settings) => void;
   undo: () => void;
+  /** Drop uploads and setting overrides, rerunning on the bundled official files. */
+  restoreOfficial: () => void;
   remove: (name: string) => void;
 };
 type SavedState = Pick<
@@ -173,6 +177,30 @@ export const useFlow = create<State>()(
           settings,
           results: runPipeline(
             combine(state.files),
+            settings,
+            new Date().toISOString(),
+          ),
+          previous: {
+            files: state.files,
+            results: state.results,
+            settings: state.settings,
+          },
+        });
+      },
+      restoreOfficial: () => {
+        const state = get();
+        const files = state.files.filter((f) => f.source === "base");
+        // Lane and capacity overrides would change official values; keep only
+        // the match distance, which official results don't use.
+        const settings = {
+          ...defaultSettings,
+          matchDistance: state.settings.matchDistance,
+        };
+        set({
+          files,
+          settings,
+          results: runPipeline(
+            combine(files),
             settings,
             new Date().toISOString(),
           ),

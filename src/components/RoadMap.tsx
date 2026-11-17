@@ -10,7 +10,14 @@ import {
 } from "react";
 import { topSegmentMarkers, visibleCrashPoints } from "../analysis/crashMap";
 import { CrashDensity } from "./CrashDensity";
-import { heatColor, heatRange, heatValue } from "../analysis/heatmap";
+import {
+  type MapMetric,
+  rankBadges,
+  rankedRows,
+  segmentStyle,
+  valueRange,
+  wardBounds,
+} from "../analysis/mapViews";
 import { View } from "react-native";
 import Svg, {
   Path,
@@ -41,7 +48,7 @@ function MapSurface({
   children: ReactNode;
   preview: boolean;
   zoom: number;
-  focus?: { x: number; y: number; key: number };
+  focus?: Focus;
 }) {
   const [center, setCenter] = useState({ x: 0, y: 0 });
   const surface = useRef<HTMLDivElement>(null);
@@ -55,7 +62,7 @@ function MapSurface({
         x: focus.x,
         y:
           focus.y +
-          (size.height * 0.22 * 360) /
+          (size.height * (focus.shift ?? 0.22) * 360) /
             Math.max(1, Math.min(size.width, size.height)) /
             zoom,
       });
@@ -145,13 +152,21 @@ function MapSurface({
     </div>
   );
 }
+type Focus = { x: number; y: number; key: number; shift?: number };
+// Ranked-road widths by emphasis tier (0 = strongest), in SVG units.
+const tierWidths = [5, 4.2, 3.4, 2.6];
 export type MapProps = {
   preview?: boolean;
   onSelectSegment?: (id: string) => void;
   segments?: SegmentResult[];
   zoom?: number;
   mode?: string;
-  metric?: "vc" | "collisions";
+  /** Heat-mode view: a ranking metric or the crash hotspot layer. */
+  metric?: MapMetric;
+  /** Ward to focus in Heat mode; undefined is citywide. */
+  scopeWard?: number;
+  /** Show only crashes from this year on the hotspot layer. */
+  crashYear?: number;
   crashSegmentIds?: Set<string>;
   /** Called when the map zooms itself to fit a selected segment. */
   onZoomTo?: (zoom: number) => void;
@@ -162,7 +177,9 @@ export function RoadMap({
   segments,
   zoom = 1,
   mode = "Map",
-  metric = "vc",
+  metric = "combined",
+  scopeWard,
+  crashYear,
   crashSegmentIds,
   onZoomTo,
 }: MapProps) {
@@ -175,17 +192,40 @@ export function RoadMap({
     return state.results?.segments.filter((s) => visible.has(s.id)) ?? [];
   }, [segments, state.results, data.segments]);
   const crashPoints = useMemo(
-    () => visibleCrashPoints(state.files, crashSegmentIds),
-    [state.files, crashSegmentIds],
+    () =>
+      visibleCrashPoints(state.files, crashSegmentIds).filter(
+        (p) => crashYear === undefined || p.year === crashYear,
+      ),
+    [state.files, crashSegmentIds, crashYear],
   );
   const markers = useMemo(
     () => topSegmentMarkers(state.files, roads),
     [state.files, roads],
   );
   const heatMode = !preview && mode === "Heat";
-  const crashHeat = heatMode && metric === "collisions";
-  const crashDots = heatMode && state.crashPointsVisible;
-  const vcHeat = heatMode && metric === "vc";
+  const crashHeat = heatMode && metric === "crashes";
+  const crashDots = crashHeat && state.crashPointsVisible;
+  const rankView = heatMode && metric !== "crashes" ? metric : undefined;
+  // Ranked roads for this view, keyed by segment; recomputed from the loaded
+  // results, so a new import recolors the map immediately.
+  const ranked = useMemo(() => {
+    if (!rankView) return undefined;
+    const visible = new Set(roads.map((s) => s.id));
+    return rankedRows(state.results, rankView, scopeWard).filter((r) =>
+      visible.has(r.id),
+    );
+  }, [rankView, roads, state.results, scopeWard]);
+  const styles = useMemo(() => {
+    if (!ranked || !rankView) return undefined;
+    const range = valueRange(ranked);
+    return new Map(
+      ranked.map((r) => [r.id, segmentStyle(r, rankView, range, c)]),
+    );
+  }, [ranked, rankView, c]);
+  const badges = useMemo(
+    () => (ranked && scopeWard !== undefined ? rankBadges(ranked) : []),
+    [ranked, scopeWard],
+  );
   // Segments picked on the map stay put; selections from elsewhere zoom to fit.
   const tapped = useRef<string | null>(null);
   const select = (id: string) => {
@@ -193,7 +233,6 @@ export function RoadMap({
     if (onSelectSegment) onSelectSegment(id);
     else state.set({ selected: id });
   };
-  const range = heatRange(roads, metric);
   const bounds = useMemo(() => {
     let minLat = Infinity,
       maxLat = -Infinity,
@@ -213,7 +252,7 @@ export function RoadMap({
   }, [data, crashPoints, crashHeat, crashDots]);
   const { minLat, maxLat, minLon, maxLon } = bounds;
   const selectedSegment = roads.find((s) => s.id === state.selected);
-  const [focus, setFocus] = useState<{ x: number; y: number; key: number }>();
+  const [focus, setFocus] = useState<Focus>();
   const lastSelected = useRef<string | undefined>(undefined);
   useEffect(() => {
     const id = selectedSegment?.id;
@@ -247,6 +286,49 @@ export function RoadMap({
     });
     onZoomTo?.(Math.min(Math.max(200 / extent, 1), 1024));
   }, [preview, selectedSegment, minLat, maxLat, minLon, maxLon, onZoomTo]);
+  // Zoom to the scoped ward (or back to the whole city) in Heat mode.
+  const wardScope = rankView ? scopeWard : undefined;
+  const lastScope = useRef<number | undefined>(undefined);
+  useEffect(() => {
+    if (preview || wardScope === lastScope.current || minLat === Infinity)
+      return;
+    // Zoom on the next frame, after the Heat card has rendered the new scope.
+    const frame = requestAnimationFrame(() => {
+      lastScope.current = wardScope;
+      const box = wardScope ? wardBounds(data.wards, wardScope) : undefined;
+      if (!box) {
+        setFocus({ x: 0, y: 0, key: Date.now(), shift: 0 });
+        onZoomTo?.(1);
+        return;
+      }
+      const cos = Math.cos((minLat * Math.PI) / 180);
+      const base =
+        320 /
+        Math.max(
+          Math.max((maxLon - minLon) * cos, 0.001),
+          Math.max(maxLat - minLat, 0.001),
+        );
+      const [[south, west], [north, east]] = box;
+      const extent = Math.max((east - west) * cos, north - south) * base;
+      setFocus({
+        x: ((west + east) / 2 - (minLon + maxLon) / 2) * cos * base,
+        y: -((south + north) / 2 - (minLat + maxLat) / 2) * base,
+        key: Date.now(),
+        shift: 0.2,
+      });
+      onZoomTo?.(Math.min(Math.max(150 / extent, 1), 64));
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [
+    preview,
+    wardScope,
+    data.wards,
+    minLat,
+    maxLat,
+    minLon,
+    maxLon,
+    onZoomTo,
+  ]);
   if (minLat === Infinity)
     return (
       <View
@@ -310,53 +392,67 @@ export function RoadMap({
               key={`${i}-${j}`}
               points={ring.map(project).join(" ")}
               fill={c.wardFills[(w.id - 1) % c.wardFills.length]}
-              fillOpacity={c.wardFillOpacity}
-              stroke={c.wardStrokes[(w.id - 1) % c.wardStrokes.length]}
+              // In a ward view, the other wards fade so the focus ward stands out.
+              fillOpacity={
+                wardScope && w.id !== wardScope
+                  ? c.wardFillOpacity * 0.3
+                  : c.wardFillOpacity
+              }
+              stroke={
+                wardScope && w.id !== wardScope
+                  ? c.divider
+                  : c.wardStrokes[(w.id - 1) % c.wardStrokes.length]
+              }
               strokeWidth={c.wardStrokeWidth}
             />
           )),
         )}
         {crashHeat && <CrashDensity points={crashPoints} project={project} />}
-        {vcHeat &&
-          c.heatGlowLayers.map((layer) =>
-            roads.map((s) => {
-              const value = heatValue(s, metric);
-              if (value === undefined) return null;
-              return (
+        {/* In a ranking view, unranked roads draw first (thin gray) and the
+            strongest tiers last, so the best-ranked roads sit on top. */}
+        {[...roads]
+          .sort(
+            (a, b) =>
+              (styles ? (styles.get(b.id)?.tier ?? 9) : 0) -
+              (styles ? (styles.get(a.id)?.tier ?? 9) : 0),
+          )
+          .map((s) => {
+            const style = styles?.get(s.id);
+            const color = styles
+              ? (style?.color ?? c.unrankedRoad)
+              : segmentLengthColor(s.lengthMi);
+            const width = styles
+              ? style
+                ? tierWidths[style.tier]
+                : 1.2
+              : preview
+                ? 1
+                : 2.5;
+            return (
+              <G key={s.id}>
+                {style?.overCapacity && (
+                  <WebPolyline
+                    points={s.geometry.map(project).join(" ")}
+                    fill="none"
+                    stroke={c.ink}
+                    strokeWidth={width + 3}
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    pointerEvents="none"
+                  />
+                )}
                 <WebPolyline
-                  key={`heat-${layer.width}-${s.id}`}
                   points={s.geometry.map(project).join(" ")}
                   fill="none"
-                  stroke={heatColor(value, range, c.heatColors, c.muted)}
-                  strokeWidth={layer.width}
-                  strokeOpacity={layer.opacity}
+                  stroke={color}
+                  strokeWidth={width}
                   strokeLinecap="round"
                   strokeLinejoin="round"
-                  pointerEvents="none"
+                  onClick={() => !preview && select(s.id)}
                 />
-              );
-            }),
-          )}
-        {roads.map((s) => {
-          const selected = s.id === state.selected;
-          const color = selected
-            ? c.primary
-            : vcHeat
-              ? heatColor(heatValue(s, metric), range, c.heatColors, c.muted)
-              : segmentLengthColor(s.lengthMi);
-          return (
-            <WebPolyline
-              key={s.id}
-              points={s.geometry.map(project).join(" ")}
-              fill="none"
-              stroke={color}
-              strokeWidth={selected ? 5 : preview ? 1 : 2.5}
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              onClick={() => !preview && select(s.id)}
-            />
-          );
-        })}
+              </G>
+            );
+          })}
         {/* Draw the selected road last, with a dark casing so it stands out on any ward fill. */}
         {selectedSegment &&
           !preview &&
@@ -385,38 +481,46 @@ export function RoadMap({
             lonScale={scale * Math.cos((minLat * Math.PI) / 180)}
           />
         )}
-        {!preview &&
-          markers.map((marker) => {
-            const [cx, cy] = project(marker.point).split(",").map(Number);
-            return (
-              <G
-                key={`rank-${marker.id}`}
-                onClick={() => select(marker.id)}
-                accessibilityLabel={`Published city combined rank ${marker.rank}: ${marker.road}`}
+        {[
+          ...(crashHeat
+            ? markers.map((m) => ({ ...m, fill: c.crashMarker, kind: "crash" }))
+            : []),
+          ...badges.map((b) => ({ ...b, fill: c.ink, kind: "ward" })),
+        ].map((marker) => {
+          const [cx, cy] = project(marker.point).split(",").map(Number);
+          return (
+            <G
+              key={`${marker.kind}-${marker.id}`}
+              onClick={() => select(marker.id)}
+              accessibilityLabel={
+                marker.kind === "crash"
+                  ? `Citywide crash rank ${marker.rank}`
+                  : `Ward ${scopeWard} rank ${marker.rank}`
+              }
+            >
+              <Circle cx={cx} cy={cy} r={22} fill="transparent" />
+              <Circle
+                cx={cx}
+                cy={cy}
+                r={10}
+                fill={marker.fill}
+                stroke={c.white}
+                strokeWidth={2}
+              />
+              <SvgText
+                x={cx}
+                y={cy}
+                dy={3.5}
+                textAnchor="middle"
+                fill={c.white}
+                fontSize={10}
+                fontWeight="bold"
               >
-                <Circle cx={cx} cy={cy} r={22} fill="transparent" />
-                <Circle
-                  cx={cx}
-                  cy={cy}
-                  r={10}
-                  fill={c.crashMarker}
-                  stroke={c.white}
-                  strokeWidth={2}
-                />
-                <SvgText
-                  x={cx}
-                  y={cy}
-                  dy={3.5}
-                  textAnchor="middle"
-                  fill={c.white}
-                  fontSize={10}
-                  fontWeight="bold"
-                >
-                  {marker.rank}
-                </SvgText>
-              </G>
-            );
-          })}
+                {marker.rank}
+              </SvgText>
+            </G>
+          );
+        })}
       </MapSurface>
       {mode === "Satellite" && (
         <View

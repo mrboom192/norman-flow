@@ -9,7 +9,6 @@ import {
   Layers,
   type LucideIcon,
   Map as MapIcon,
-  MapPin,
   Minus,
   Plus,
   RotateCcw,
@@ -28,7 +27,8 @@ import {
   type ViewStyle,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { HeatLegend } from "../components/HeatLegend";
+import { HeatPanel } from "../components/HeatPanel";
+import type { MapMetric } from "../analysis/mapViews";
 import { RoadMap } from "../components/RoadMap";
 import { SegmentLengthLegend } from "../components/SegmentLengthLegend";
 import { Sheet } from "../components/Sheet";
@@ -67,7 +67,9 @@ export default function SearchScreen() {
     [lanes, setLanes] = useState(false),
     [crashes, setCrashes] = useState(false),
     [counts, setCounts] = useState(false),
-    [metric, setMetric] = useState<"vc" | "collisions">("collisions");
+    [metric, setMetric] = useState<MapMetric>("combined"),
+    [scopeWard, setScopeWard] = useState<number | undefined>(undefined),
+    [crashYear, setCrashYear] = useState<number | undefined>(undefined);
   const [lastQuery, setLastQuery] = useState(params.q),
     [lastReset, setLastReset] = useState(state.mapReset);
   if (params.q !== lastQuery) {
@@ -165,9 +167,23 @@ export default function SearchScreen() {
         : undefined,
     [wardFilter, lanes, crashes, counts, query, matching],
   );
+  const hotspotYears = useMemo(
+    () =>
+      [
+        ...new Set(
+          visibleCrashPoints(state.files)
+            .map((p) => p.year)
+            .filter((y) => y > 0),
+        ),
+      ].sort((a, b) => a - b),
+    [state.files],
+  );
   const crashCount = useMemo(
-    () => visibleCrashPoints(state.files, crashSegmentIds).length,
-    [state.files, crashSegmentIds],
+    () =>
+      visibleCrashPoints(state.files, crashSegmentIds).filter(
+        (p) => crashYear === undefined || p.year === crashYear,
+      ).length,
+    [state.files, crashSegmentIds, crashYear],
   );
   const filters = [
     {
@@ -207,6 +223,8 @@ export default function SearchScreen() {
           zoom={zoom}
           mode={mode}
           metric={metric}
+          scopeWard={scopeWard}
+          crashYear={crashYear}
           crashSegmentIds={crashSegmentIds}
           onZoomTo={setZoom}
           onSelectSegment={(id) => {
@@ -363,94 +381,21 @@ export default function SearchScreen() {
         }}
       >
         {mode === "Heat" ? (
-          <View style={{ gap: 10 }}>
-            <View
-              style={{
-                flexDirection: "row",
-                padding: 3,
-                borderRadius: 999,
-                backgroundColor: c.dataSurface,
-              }}
-            >
-              {(
-                [
-                  ["vc", "V/C"],
-                  ["collisions", "Crash density"],
-                ] as const
-              ).map(([value, label]) => {
-                const active = metric === value;
-                return (
-                  <Pressable
-                    key={value}
-                    onPress={() => setMetric(value)}
-                    accessibilityRole="button"
-                    accessibilityLabel={label}
-                    accessibilityState={{ selected: active }}
-                    style={{
-                      flex: 1,
-                      minHeight: 44,
-                      alignItems: "center",
-                      justifyContent: "center",
-                      borderRadius: 999,
-                      backgroundColor: active ? c.surface : "transparent",
-                      boxShadow: active
-                        ? "0px 1px 4px rgba(0, 0, 0, 0.12)"
-                        : undefined,
-                    }}
-                  >
-                    <T
-                      size={13}
-                      style={{
-                        fontFamily: fonts.bold,
-                        color: active ? c.ink : c.muted,
-                      }}
-                    >
-                      {label}
-                    </T>
-                  </Pressable>
-                );
-              })}
-            </View>
-            <Row style={{ minHeight: 44, gap: 10 }}>
-              <View
-                style={{
-                  width: 32,
-                  height: 32,
-                  borderRadius: 10,
-                  alignItems: "center",
-                  justifyContent: "center",
-                  backgroundColor: state.crashPointsVisible
-                    ? c.crashMarker
-                    : c.dataSurface,
-                }}
-              >
-                <MapPin
-                  size={16}
-                  color={state.crashPointsVisible ? c.white : c.muted}
-                />
-              </View>
-              <View style={{ flex: 1 }}>
-                <T size={13} style={{ fontFamily: fonts.bold }}>
-                  Crash locations
-                </T>
-                <T muted size={11}>
-                  Dots and count badges · zoom in to separate
-                </T>
-              </View>
-              <Toggle
-                accessibilityLabel="Show crash locations"
-                value={state.crashPointsVisible}
-                onValueChange={(crashPointsVisible) =>
-                  state.set({ crashPointsVisible })
-                }
-              />
-            </Row>
-            <HeatLegend
-              segments={matching}
-              metric={metric}
-              crashCount={crashCount}
-            />
-          </View>
+          <HeatPanel
+            metric={metric}
+            onMetric={setMetric}
+            scopeWard={scopeWard}
+            onScopeWard={setScopeWard}
+            crashYear={crashYear}
+            onCrashYear={setCrashYear}
+            segments={matching}
+            crashCount={crashCount}
+            hotspotYears={hotspotYears}
+            onSelect={(id) => {
+              state.set({ selected: id });
+              setSheet("roads");
+            }}
+          />
         ) : (
           <View style={{ gap: 6 }}>
             <T heading size={15}>
@@ -799,7 +744,7 @@ export default function SearchScreen() {
             <Pressable
               onPress={() => navigateAfterClose(() => router.push("/import"))}
               accessibilityRole="button"
-              accessibilityLabel="Upload CSV, XLSX, KML, KMZ or GeoJSON"
+              accessibilityLabel="Add new data"
               style={({ pressed }) => ({
                 alignItems: "center",
                 gap: 6,
@@ -828,7 +773,7 @@ export default function SearchScreen() {
                 Add data files
               </T>
               <T muted size={12}>
-                CSV, XLSX, KML, KMZ or GeoJSON
+                Results CSV from the Excel tool, or map GeoJSON
               </T>
             </Pressable>
             <SectionLabel>Source files</SectionLabel>

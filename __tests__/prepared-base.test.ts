@@ -29,7 +29,7 @@ async function load() {
     })),
   );
 }
-it("preserves bundled metrics and ward memberships with sequential ranks and exports those results", async () => {
+it("preserves bundled metrics and ward memberships with official ranks and exports those results", async () => {
   const files = await load(),
     inputs = combine(files),
     results = runPipeline(inputs);
@@ -53,7 +53,7 @@ it("preserves bundled metrics and ward memberships with sequential ranks and exp
       maxVolume: row.volume,
       capacity: row.capacity,
       collisions: row.collisions,
-      vc: Number(Number(row.vc).toFixed(2)),
+      vc: Number(row.vc),
     });
     for (const [, ward] of String(row.ward_ranks).matchAll(
       /Ward (\d+):(\d+)/g,
@@ -69,19 +69,7 @@ it("preserves bundled metrics and ward memberships with sequential ranks and exp
   expect(
     Object.values(results.wards).reduce((n, w) => n + w.combined.length, 0),
   ).toBe(memberships);
-  for (const ward of Object.values(results.wards)) {
-    for (const kind of ["vc", "collisions", "combined"] as const) {
-      const field =
-        kind === "vc"
-          ? "vcRank"
-          : kind === "collisions"
-            ? "collisionRank"
-            : "combinedRank";
-      expect(ward[kind].map((s) => s[field])).toEqual(
-        ward[kind].map((_, i) => i + 1),
-      );
-    }
-  }
+  expect(results.official).toBe(true);
   const unranked = results.segments.filter((s) => !s.publishedRanked);
   expect(unranked).toHaveLength(256);
   expect(

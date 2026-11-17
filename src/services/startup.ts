@@ -3,7 +3,7 @@ import { Asset } from "expo-asset";
 import { File } from "expo-file-system";
 import { Platform } from "react-native";
 import { baseAssets } from "./base-assets.generated";
-import { validateJoin } from "../analysis/prepared";
+import { preparedParserVersion, validateJoin } from "../analysis/prepared";
 import { parseFile } from "./files";
 import { combine, DatasetFile, flowStorage, useFlow } from "../store/useFlow";
 import { runPipeline } from "../analysis/pipeline";
@@ -54,9 +54,8 @@ async function load(
         f.source === "base" &&
         f.name === asset.name &&
         f.baseVersion === asset.version &&
-        // Older parsed summaries omitted the published marker rank.
-        (!f.data.summaries?.length ||
-          f.data.summaries.some((r) => r.cityCombinedRank !== undefined)),
+        // Files parsed by an older parser lack newer fields (e.g. ward_ranks).
+        f.parserVersion === preparedParserVersion,
     );
     if (cached) {
       files.push(cached);

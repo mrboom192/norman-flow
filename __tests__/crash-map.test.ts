@@ -116,15 +116,15 @@ it("joins the published top ten exactly, preserving the two labels ranked 2", ()
   const rankings = readPrepared(bytes(rankingsName), rankingsName);
   const markers = topSegmentMarkers([file(rankings)], geometry.segments);
   expect(markers).toHaveLength(10);
-  expect(markers.map((m) => m.rank)).toEqual([1, 2, 2, 4, 5, 6, 7, 8, 9, 10]);
+  expect(markers.map((m) => m.rank)).toEqual([1, 2, 3, 4, 5, 6, 7, 8, 9, 10]);
   const book = XLSX.read(bytes(rankingsName), { type: "buffer" });
   const rows = XLSX.utils.sheet_to_json<{
     key: string;
-    city_combined_rank: number;
+    city_coll_rank: number;
   }>(book.Sheets[book.SheetNames[0]]);
   for (const marker of markers) {
     expect(marker.rank).toBe(
-      rows.find((r) => r.key === marker.id)!.city_combined_rank,
+      rows.find((r) => r.key === marker.id)!.city_coll_rank,
     );
     expect(marker.point).toEqual(
       segmentMidpoint(geometry.segments.find((s) => s.id === marker.id)!),
