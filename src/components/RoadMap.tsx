@@ -38,6 +38,9 @@ import { T } from "./ui";
 const WebPolyline = Polyline as ComponentType<
   ComponentProps<typeof Polyline> & { onClick?: () => void }
 >;
+const WebPolygon = Polygon as ComponentType<
+  ComponentProps<typeof Polygon> & { onClick?: () => void }
+>;
 // Keep pointer updates local: dragging changes the SVG viewport without rebuilding road paths.
 function MapSurface({
   children,
@@ -170,6 +173,10 @@ export type MapProps = {
   crashSegmentIds?: Set<string>;
   /** Called when the map zooms itself to fit a selected segment. */
   onZoomTo?: (zoom: number) => void;
+  /** Tapping inside a ward (not on a road) reports which ward it is. */
+  onSelectWard?: (ward: number) => void;
+  /** Ward to outline after a tap. */
+  selectedWard?: number;
 };
 export function RoadMap({
   preview = false,
@@ -182,6 +189,8 @@ export function RoadMap({
   crashYear,
   crashSegmentIds,
   onZoomTo,
+  onSelectWard,
+  selectedWard,
 }: MapProps) {
   const c = useTheme(),
     state = useFlow(),
@@ -388,9 +397,10 @@ export function RoadMap({
       >
         {data.wards.map((w, i) =>
           w.rings.map((ring, j) => (
-            <Polygon
+            <WebPolygon
               key={`${i}-${j}`}
               points={ring.map(project).join(" ")}
+              onClick={() => !preview && onSelectWard?.(w.id)}
               fill={c.wardFills[(w.id - 1) % c.wardFills.length]}
               // In a ward view, the other wards fade so the focus ward stands out.
               fillOpacity={
@@ -407,6 +417,22 @@ export function RoadMap({
             />
           )),
         )}
+        {/* Outline a tapped ward on top of its neighbours' shared edges. */}
+        {!preview &&
+          data.wards
+            .filter((w) => w.id === selectedWard)
+            .flatMap((w, i) =>
+              w.rings.map((ring, j) => (
+                <Polygon
+                  key={`selected-ward-${i}-${j}`}
+                  points={ring.map(project).join(" ")}
+                  fill="none"
+                  stroke={c.ink}
+                  strokeWidth={2.5}
+                  pointerEvents="none"
+                />
+              )),
+            )}
         {crashHeat && <CrashDensity points={crashPoints} project={project} />}
         {/* In a ranking view, unranked roads draw first (thin gray) and the
             strongest tiers last, so the best-ranked roads sit on top. */}

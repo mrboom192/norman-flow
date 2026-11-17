@@ -12,12 +12,15 @@ export function SegmentRow({
   segment: s,
   kind = "combined",
   divider = false,
+  highlighted = false,
 }: {
   segment: SegmentResult;
   kind?: RankKind;
   divider?: boolean;
+  /** Opened from the map's "See its rank": outlined and expanded. */
+  highlighted?: boolean;
 }) {
-  const [expanded, setExpanded] = useState(false),
+  const [expanded, setExpanded] = useState(highlighted),
     c = useTheme();
   const rank =
     kind === "combined"
@@ -35,11 +38,22 @@ export function SegmentRow({
         : [format(s.collisions), "crashes"];
   return (
     <View
+      accessibilityLabel={highlighted ? "Selected on the map" : undefined}
       style={{
         borderTopWidth: divider ? 1 : 0,
         borderColor: c.divider,
         paddingBottom: expanded ? 14 : 0,
         gap: 12,
+        ...(highlighted && {
+          borderWidth: 2,
+          borderTopWidth: 2,
+          borderColor: c.primary,
+          borderRadius: 18,
+          backgroundColor: c.chipTint,
+          paddingHorizontal: 10,
+          marginHorizontal: -10,
+          marginVertical: 4,
+        }),
       }}
     >
       <Pressable

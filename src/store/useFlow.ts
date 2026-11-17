@@ -115,6 +115,11 @@ type State = {
   mapReset: number;
   crashPointsVisible: boolean;
   tour: number | null;
+  /**
+   * One-off request from the map's "See its rank": Rankings scrolls to and
+   * highlights this segment in this ward. `key` changes on every request.
+   */
+  rankFocus: { id: string; ward: number; key: number } | null;
   set: (value: Partial<State>) => void;
   commit: (files: DatasetFile[]) => void;
   rerun: (settings: Settings) => void;
@@ -172,6 +177,7 @@ export const useFlow = create<State>()(
       mapReset: 0,
       crashPointsVisible: false,
       tour: null,
+      rankFocus: null,
       set,
       commit: (files) => {
         const state = get();

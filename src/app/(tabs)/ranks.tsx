@@ -7,7 +7,7 @@ import {
   ListOrdered,
   type LucideIcon,
 } from "lucide-react-native";
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Pressable, ScrollView, View } from "react-native";
 import { rankSegments } from "../../analysis/rankings";
 import { RankKind } from "../../analysis/types";
@@ -62,7 +62,63 @@ export default function Rankings() {
     [sheet, setSheet] = useState(""),
     [status, setStatus] = useState(""),
     [busy, setBusy] = useState(false),
-    [allWards, setAllWards] = useState(false);
+    [allWards, setAllWards] = useState(false),
+    [highlight, setHighlight] = useState<{ id: string; key: number } | null>(
+      null,
+    ),
+    [notice, setNotice] = useState(""),
+    [handledFocus, setHandledFocus] = useState(0);
+  // The map's "See its rank" asks to show one segment: pick a list that has it,
+  // clear search and sort, and make sure its row is loaded.
+  const rankFocus = useFlow((s) => s.rankFocus);
+  if (rankFocus && rankFocus.key !== handledFocus && result) {
+    setHandledFocus(rankFocus.key);
+    setAllWards(false);
+    setQuery("");
+    setSort("Final rank");
+    const lists = result.wards[rankFocus.ward];
+    const found = ([kind, "combined", "vc", "collisions"] as RankKind[]).find(
+      (k) => lists?.[k].some((s) => s.id === rankFocus.id),
+    );
+    if (found) {
+      const index = lists[found].findIndex((s) => s.id === rankFocus.id);
+      setKind(found);
+      setLimit(Math.max(20, Math.ceil((index + 1) / 20) * 20));
+      setHighlight({ id: rankFocus.id, key: rankFocus.key });
+      setNotice("");
+    } else {
+      const segment = result.segments.find((s) => s.id === rankFocus.id);
+      setHighlight(null);
+      setNotice(
+        segment
+          ? `${segment.road}, segment ${segment.index}, isn’t ranked in Ward ${rankFocus.ward}${segment.preparedStatus ? ` (${segment.preparedStatus.replace(/^Not ranked - /, "")})` : ""}.`
+          : "That segment isn’t in the loaded rankings.",
+      );
+    }
+  }
+  // Row positions, for scrolling to the highlighted row. The first row sits
+  // in its own container (the tour target), the rest in a second one.
+  const containerY = useRef({ first: 0, rest: 0 });
+  const rowY = useRef<
+    Record<string, { container: "first" | "rest"; y: number }>
+  >({});
+  useEffect(() => {
+    if (!highlight) return;
+    // Wait for the list to lay out at its new length before scrolling.
+    const timer = setTimeout(() => {
+      const row = rowY.current[highlight.id];
+      if (row)
+        scroll.current?.scrollTo({
+          y: Math.max(0, containerY.current[row.container] + row.y - 140),
+          animated: true,
+        });
+    }, 350);
+    return () => clearTimeout(timer);
+  }, [highlight]);
+  const clearFocus = () => {
+    setHighlight(null);
+    setNotice("");
+  };
   const citywide = useMemo(
     () => rankSegments(result?.segments ?? []),
     [result],
@@ -83,6 +139,9 @@ export default function Rankings() {
               ? (b.maxVolume ?? 0) - (a.maxVolume ?? 0)
               : (b.lanes ?? 0) - (a.lanes ?? 0),
     );
+  // A new highlight remounts its row so it opens expanded.
+  const rowKey = (id: string) =>
+    highlight?.id === id ? `${id}:${highlight.key}` : id;
   async function save(all: boolean, city = false) {
     if (!result) return;
     setBusy(true);
@@ -151,6 +210,7 @@ export default function Rankings() {
                   }
                   accessibilityState={{ selected: active }}
                   onPress={() => {
+                    clearFocus();
                     setAllWards(value === "all");
                     if (value !== "all")
                       useFlow.getState().set({ ward: value });
@@ -205,7 +265,14 @@ export default function Rankings() {
           </View>
         </View>
 
-        <View {...firstTarget} style={{ paddingHorizontal: 20 }}>
+        <View
+          {...firstTarget}
+          onLayout={(e) => {
+            firstTarget.onLayout(e);
+            containerY.current.first = e.nativeEvent.layout.y;
+          }}
+          style={{ paddingHorizontal: 20 }}
+        >
           <Row style={{ alignItems: "flex-end" }}>
             <T heading size={19}>
               {allWards ? "All of Norman" : `Ward ${ward}`}
@@ -218,8 +285,37 @@ export default function Rankings() {
             {kindInfo.description}
             {sort !== "Final rank" ? ` · sorted by ${sort}` : ""}
           </T>
+          {!!notice && (
+            <T
+              size={13}
+              accessibilityLiveRegion="polite"
+              style={{
+                padding: 12,
+                marginBottom: 6,
+                borderRadius: 14,
+                color: c.primaryDeep,
+                backgroundColor: c.chipTint,
+              }}
+            >
+              {notice}
+            </T>
+          )}
           {rows[0] ? (
-            <SegmentRow segment={rows[0]} kind={kind} />
+            <View
+              onLayout={(e) => {
+                rowY.current[rows[0].id] = {
+                  container: "first",
+                  y: e.nativeEvent.layout.y,
+                };
+              }}
+            >
+              <SegmentRow
+                key={rowKey(rows[0].id)}
+                segment={rows[0]}
+                kind={kind}
+                highlighted={highlight?.id === rows[0].id}
+              />
+            </View>
           ) : (
             <Empty
               title={
@@ -240,14 +336,30 @@ export default function Rankings() {
         </View>
 
         {/* Rows after the first sit outside the tour target so it stays one row tall. */}
-        <View style={{ paddingHorizontal: 20, marginTop: -16 }}>
+        <View
+          onLayout={(e) => {
+            containerY.current.rest = e.nativeEvent.layout.y;
+          }}
+          style={{ paddingHorizontal: 20, marginTop: -16 }}
+        >
           {rows.slice(1, limit).map((segment) => (
-            <SegmentRow
+            <View
               key={segment.id}
-              segment={segment}
-              kind={kind}
-              divider
-            />
+              onLayout={(e) => {
+                rowY.current[segment.id] = {
+                  container: "rest",
+                  y: e.nativeEvent.layout.y,
+                };
+              }}
+            >
+              <SegmentRow
+                key={rowKey(segment.id)}
+                segment={segment}
+                kind={kind}
+                divider
+                highlighted={highlight?.id === segment.id}
+              />
+            </View>
           ))}
           {rows.length > limit && (
             <Button
@@ -291,6 +403,7 @@ export default function Rankings() {
                 selected={kind === k.key}
                 divider={i > 0}
                 onPress={() => {
+                  clearFocus();
                   setKind(k.key);
                   setLimit(20);
                   setSheet("");

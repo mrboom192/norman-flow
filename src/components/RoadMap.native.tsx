@@ -42,6 +42,10 @@ type MapProps = {
   crashSegmentIds?: Set<string>;
   /** Web-only; native fits the camera to the selected segment itself. */
   onZoomTo?: (zoom: number) => void;
+  /** Tapping inside a ward (not on a road) reports which ward it is. */
+  onSelectWard?: (ward: number) => void;
+  /** Ward to outline after a tap. */
+  selectedWard?: number;
 };
 export function RoadMap({
   preview = false,
@@ -53,6 +57,8 @@ export function RoadMap({
   scopeWard,
   crashYear,
   crashSegmentIds,
+  onSelectWard,
+  selectedWard,
 }: MapProps) {
   const c = useTheme(),
     state = useFlow(),
@@ -291,8 +297,28 @@ export function RoadMap({
                 : c.wardStrokes[(w.id - 1) % c.wardStrokes.length]
             }
             strokeWidth={c.wardStrokeWidth}
+            tappable={!preview && Boolean(onSelectWard)}
+            onPress={() => onSelectWard?.(w.id)}
           />
         ))}
+        {/* Outline a tapped ward on top of its neighbours' shared edges. */}
+        {!preview &&
+          data.wards
+            .filter((w) => w.id === selectedWard)
+            .map((w) => (
+              <Polygon
+                key={`selected-ward-${w.id}`}
+                coordinates={w.rings[0].map(([latitude, longitude]) => ({
+                  latitude,
+                  longitude,
+                }))}
+                fillColor="transparent"
+                strokeColor={c.ink}
+                strokeWidth={3}
+                tappable={false}
+                zIndex={1}
+              />
+            ))}
         {densityImage && (
           <Overlay
             bounds={densityImage.bounds}

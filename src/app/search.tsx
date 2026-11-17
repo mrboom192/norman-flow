@@ -44,7 +44,7 @@ import {
   WardPicker,
 } from "../components/ui";
 import { useFlow, visibleGeometry } from "../store/useFlow";
-import { fonts, format, segmentLengthColor, useTheme } from "../theme";
+import { colors, fonts, format, segmentLengthColor, useTheme } from "../theme";
 
 const mapModes: { label: string; icon: LucideIcon }[] = [
   { label: "Map", icon: MapIcon },
@@ -70,7 +70,9 @@ export default function SearchScreen() {
     [counts, setCounts] = useState(false),
     [metric, setMetric] = useState<MapMetric>("combined"),
     [scopeWard, setScopeWard] = useState<number | undefined>(undefined),
-    [crashYear, setCrashYear] = useState<number | undefined>(undefined);
+    [crashYear, setCrashYear] = useState<number | undefined>(undefined),
+    // Ward the user tapped on the map (shown in a card and outlined).
+    [tappedWard, setTappedWard] = useState<number | undefined>(undefined);
   const [lastQuery, setLastQuery] = useState(params.q),
     [lastReset, setLastReset] = useState(state.mapReset);
   if (params.q !== lastQuery) {
@@ -79,6 +81,7 @@ export default function SearchScreen() {
   }
   if (state.mapReset !== lastReset) {
     setLastReset(state.mapReset);
+    setTappedWard(undefined);
     setZoom(1);
     setQuery("");
     setWardFilter(false);
@@ -229,9 +232,12 @@ export default function SearchScreen() {
           crashSegmentIds={crashSegmentIds}
           onZoomTo={setZoom}
           onSelectSegment={(id) => {
+            setTappedWard(undefined);
             state.set({ selected: id });
             setSheet("roads");
           }}
+          selectedWard={tappedWard}
+          onSelectWard={setTappedWard}
         />
       </View>
 
@@ -312,6 +318,16 @@ export default function SearchScreen() {
           })}
         </View>
         <DatasetBanner style={{ borderRadius: 14, boxShadow: c.floatShadow }} />
+        {tappedWard !== undefined && (
+          <WardCard
+            ward={tappedWard}
+            onClose={() => setTappedWard(undefined)}
+            onSeeRankings={() => {
+              state.set({ ward: tappedWard });
+              navigateAfterClose(() => router.dismissTo("/ranks"));
+            }}
+          />
+        )}
         <Row style={{ alignItems: "flex-start" }}>
           <View
             pointerEvents="box-none"
@@ -616,8 +632,19 @@ export default function SearchScreen() {
               <Button
                 label="See its rank"
                 onPress={() => {
-                  if (selected.wards.length)
-                    state.set({ ward: selected.wards[0] });
+                  // Stay in the ward already shown on Rankings when the
+                  // segment is in it; otherwise use its first ward.
+                  const ward = selected.wards.includes(state.ward)
+                    ? state.ward
+                    : (selected.wards[0] ?? state.ward);
+                  state.set({
+                    ward,
+                    rankFocus: {
+                      id: selected.id,
+                      ward,
+                      key: (state.rankFocus?.key ?? 0) + 1,
+                    },
+                  });
                   navigateAfterClose(() => router.dismissTo("/ranks"));
                 }}
               />
@@ -901,6 +928,89 @@ function StackButton({
     >
       <Icon size={19} color={c.ink} />
     </Pressable>
+  );
+}
+
+/** Which ward the user tapped, with its counts and a shortcut to its rankings. */
+function WardCard({
+  ward,
+  onClose,
+  onSeeRankings,
+}: {
+  ward: number;
+  onClose: () => void;
+  onSeeRankings: () => void;
+}) {
+  const c = useTheme(),
+    results = useFlow((s) => s.results);
+  const segments =
+    results?.segments.filter((s) => s.wards.includes(ward)).length ?? 0;
+  const ranked = results?.wards[ward]?.vc.length ?? 0;
+  return (
+    <View
+      accessibilityLiveRegion="polite"
+      style={{
+        flexDirection: "row",
+        alignItems: "center",
+        gap: 12,
+        padding: 12,
+        borderRadius: 18,
+        backgroundColor: c.surface,
+        boxShadow: c.floatShadow,
+      }}
+    >
+      <View
+        style={{
+          width: 40,
+          height: 40,
+          borderRadius: 12,
+          alignItems: "center",
+          justifyContent: "center",
+          borderWidth: 2,
+          borderColor: c.wardStrokes[(ward - 1) % c.wardStrokes.length],
+          backgroundColor: c.wardFills[(ward - 1) % c.wardFills.length],
+        }}
+      >
+        <T heading size={18} style={{ color: colors.ink }}>
+          {ward}
+        </T>
+      </View>
+      <View style={{ flex: 1 }}>
+        <T heading size={16}>
+          Ward {ward}
+        </T>
+        <T muted size={12}>
+          City Council ward · {segments} segments · {ranked} ranked
+        </T>
+      </View>
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel={`See Ward ${ward} rankings`}
+        onPress={onSeeRankings}
+        style={{
+          minHeight: 44,
+          justifyContent: "center",
+          paddingHorizontal: 4,
+        }}
+      >
+        <T size={13} style={{ fontFamily: fonts.bold, color: c.primaryText }}>
+          Rankings
+        </T>
+      </Pressable>
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel="Close ward details"
+        onPress={onClose}
+        style={{
+          width: 44,
+          height: 44,
+          alignItems: "center",
+          justifyContent: "center",
+        }}
+      >
+        <X size={18} color={c.muted} />
+      </Pressable>
+    </View>
   );
 }
 
