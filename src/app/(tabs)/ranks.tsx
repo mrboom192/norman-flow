@@ -1,7 +1,11 @@
-import { useState } from "react";
-import { View, Pressable } from "react-native";
-import { Download, ChevronDown } from "lucide-react-native";
 import { router } from "expo-router";
+import { Download, ListOrdered, SlidersHorizontal } from "lucide-react-native";
+import { useMemo, useState } from "react";
+import { Pressable, ScrollView, View } from "react-native";
+import { rankSegments } from "../../analysis/rankings";
+import { RankKind } from "../../analysis/types";
+import { SegmentRow } from "../../components/SegmentRow";
+import { Sheet } from "../../components/Sheet";
 import {
   Button,
   Chip,
@@ -10,15 +14,11 @@ import {
   Row,
   Screen,
   T,
-  WardPicker,
 } from "../../components/ui";
-import { Sheet } from "../../components/Sheet";
-import { SegmentRow } from "../../components/SegmentRow";
-import { useFlow } from "../../store/useFlow";
-import { RankKind } from "../../analysis/types";
-import { fonts, useTheme } from "../../theme";
-import { exportWorkbook } from "../../services/export";
 import { download } from "../../services/download";
+import { exportWorkbook } from "../../services/export";
+import { useFlow } from "../../store/useFlow";
+import { fonts, useTheme } from "../../theme";
 const sorts = [
   "Final rank",
   "V/C ratio",
@@ -37,10 +37,15 @@ export default function Rankings() {
     [limit, setLimit] = useState(20),
     [sheet, setSheet] = useState(""),
     [status, setStatus] = useState(""),
-    [busy, setBusy] = useState(false);
-  const rows = [...(result?.wards[ward][kind] ?? [])].filter((s) =>
-    s.road.toLowerCase().includes(query.toLowerCase()),
+    [busy, setBusy] = useState(false),
+    [allWards, setAllWards] = useState(false);
+  const citywide = useMemo(
+    () => rankSegments(result?.segments ?? []),
+    [result],
   );
+  const rows = [
+    ...(allWards ? citywide[kind] : (result?.wards[ward]?.[kind] ?? [])),
+  ].filter((s) => s.road.toLowerCase().includes(query.toLowerCase()));
   if (sort !== "Final rank")
     rows.sort((a, b) =>
       sort === "A–Z"
@@ -48,18 +53,21 @@ export default function Rankings() {
         : sort === "V/C ratio"
           ? (b.vc ?? -1) - (a.vc ?? -1)
           : sort === "Collisions"
-            ? b.collisions - a.collisions
+            ? (b.collisions ?? -1) - (a.collisions ?? -1)
             : sort === "Traffic volume"
               ? (b.maxVolume ?? 0) - (a.maxVolume ?? 0)
               : (b.lanes ?? 0) - (a.lanes ?? 0),
     );
-  async function save(all: boolean) {
+  async function save(all: boolean, city = false) {
     if (!result) return;
     setBusy(true);
     try {
       await download(
-        await exportWorkbook(result, all ? undefined : ward),
-        `Norman-Flow-${all ? "All-Wards" : "Ward-" + ward}.xlsx`,
+        await exportWorkbook(
+          result,
+          city ? "citywide" : all ? undefined : ward,
+        ),
+        `Norman-Flow-${city ? "Citywide" : all ? "All-Wards" : "Ward-" + ward}.xlsx`,
       );
       setSheet("");
       setStatus("Workbook exported.");
@@ -71,137 +79,206 @@ export default function Rankings() {
   }
   return (
     <View style={{ flex: 1 }}>
-      <Screen>
-        <Row>
-          <T heading size={29}>
-            Final Rankings
-          </T>
-          <Button
-            label="Export"
-            icon={Download}
-            outline
-            onPress={() => setSheet("export")}
-            style={{ paddingHorizontal: 13 }}
-          />
-        </Row>
-        <WardPicker />
-        <View
-          style={{
-            flexDirection: "row",
-            borderWidth: 1,
-            borderColor: c.border,
-            borderRadius: 16,
-            padding: 4,
-            backgroundColor: c.surface,
-          }}
-        >
-          {(["combined", "vc", "collisions"] as RankKind[]).map((key, i) => (
-            <Pressable
-              accessibilityRole="button"
-              accessibilityState={{ selected: kind === key }}
-              key={key}
-              onPress={() => {
-                setKind(key);
-                setLimit(20);
-              }}
-              style={{
-                flex: 1,
-                minHeight: 44,
-                alignItems: "center",
-                justifyContent: "center",
-                borderRadius: 12,
-                backgroundColor: kind === key ? c.ink : "transparent",
-              }}
-            >
-              <T
-                size={13}
-                style={{
-                  fontFamily: fonts.bold,
-                  color: kind === key ? c.surface : c.muted,
-                }}
-              >
-                {["Combined", "V/C ratio", "Collisions"][i]}
-              </T>
-            </Pressable>
-          ))}
+      <Screen style={{ paddingHorizontal: 0 }}>
+        <View style={{ paddingHorizontal: 20, gap: 16 }}>
+          <Row>
+            <T heading size={29}>
+              Rankings
+            </T>
+            <Row style={{ gap: 4 }}>
+              {[
+                {
+                  key: "kind",
+                  icon: ListOrdered,
+                  label: `Ranking type: ${kind === "vc" ? "V/C ratio" : kind}`,
+                },
+                {
+                  key: "sort",
+                  icon: SlidersHorizontal,
+                  label: `Sort by ${sort}`,
+                },
+                { key: "export", icon: Download, label: "Export rankings" },
+              ].map(({ key, icon: Icon, label }) => (
+                <Pressable
+                  key={key}
+                  accessibilityRole="button"
+                  accessibilityLabel={label}
+                  accessibilityHint={
+                    key === "export"
+                      ? "Opens workbook export options"
+                      : "Opens ranking options"
+                  }
+                  onPress={() => setSheet(key)}
+                  style={({ pressed }) => ({
+                    width: 44,
+                    height: 44,
+                    borderRadius: 14,
+                    borderWidth: 1,
+                    borderColor: c.border,
+                    alignItems: "center",
+                    justifyContent: "center",
+                    backgroundColor: pressed ? c.primaryTint : c.surface,
+                  })}
+                >
+                  <Icon size={21} strokeWidth={2} color={c.ink} />
+                </Pressable>
+              ))}
+            </Row>
+          </Row>
         </View>
-        <Row>
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={{
+            gap: 10,
+            paddingBottom: 4,
+            paddingHorizontal: 20,
+          }}
+          accessibilityLabel="Filter rankings by ward"
+        >
+          {(["all", 1, 2, 3, 4, 5, 6, 7, 8] as const).map((value) => {
+            const active =
+              value === "all" ? allWards : !allWards && ward === value;
+            return (
+              <Pressable
+                key={value}
+                accessibilityRole="button"
+                accessibilityLabel={
+                  value === "all" ? "All wards" : `Ward ${value}`
+                }
+                accessibilityState={{ selected: active }}
+                onPress={() => {
+                  setAllWards(value === "all");
+                  if (value !== "all") useFlow.getState().set({ ward: value });
+                  setLimit(20);
+                }}
+                style={({ pressed }) => ({
+                  minWidth: 64,
+                  minHeight: 50,
+                  paddingHorizontal: 18,
+                  alignItems: "center",
+                  justifyContent: "center",
+                  borderRadius: 15,
+                  borderWidth: 2,
+                  borderBottomWidth: pressed ? 2 : 5,
+                  borderColor: c.ink,
+                  backgroundColor: active ? c.primary : c.surface,
+                  transform: [{ translateY: pressed ? 3 : 0 }],
+                })}
+              >
+                <T
+                  size={15}
+                  style={{
+                    fontFamily: fonts.bold,
+                    color: active ? c.onPrimary : c.ink,
+                  }}
+                >
+                  {value === "all" ? "All" : `Ward ${value}`}
+                </T>
+              </Pressable>
+            );
+          })}
+        </ScrollView>
+        <View style={{ paddingHorizontal: 20, gap: 16 }}>
           <Input
             search
-            placeholder="Search this list"
+            placeholder="Search roads"
             value={query}
             onChangeText={setQuery}
-            style={{ flex: 1 }}
           />
-          <Pressable
-            accessibilityRole="button"
-            onPress={() => setSheet("sort")}
+          <Row>
+            <T muted size={12}>
+              {allWards ? "All of Norman" : `Ward ${ward}`} ·{" "}
+              {kind === "vc" ? "V/C" : kind} rank
+            </T>
+            <T muted size={12}>
+              {result ? rows.length : "—"} segments ranked
+            </T>
+          </Row>
+          {sort !== "Final rank" && (
+            <T muted size={12}>
+              Sorted by {sort}
+            </T>
+          )}
+          <View
             style={{
-              minHeight: 50,
-              borderWidth: 1,
-              borderColor: c.border,
-              borderRadius: 999,
-              paddingHorizontal: 12,
-              backgroundColor: c.surface,
+              gap: 8,
             }}
           >
-            <Row style={{ flex: 1 }}>
-              <T muted size={12}>
-                Sort
-              </T>
-              <T size={12}>{sort}</T>
-              <ChevronDown size={14} color={c.muted} />
-            </Row>
-          </Pressable>
-        </Row>
-        <Row>
-          <T muted size={12}>
-            Ward {ward} · {kind === "vc" ? "V/C" : kind} rank
-          </T>
-          <T muted size={12}>
-            {result ? rows.length : "—"} segments ranked
-          </T>
-        </Row>
-        {rows.length ? (
-          rows
-            .slice(0, limit)
-            .map((s) => <SegmentRow key={s.id} segment={s} kind={kind} />)
-        ) : (
-          <Empty
-            title={
-              query
-                ? "No matching segments"
-                : result
-                  ? "No segments in this list"
-                  : "Rankings are waiting for data"
-            }
-            body={
-              query
-                ? "Try another road name."
-                : "Import the raw files to calculate this ward’s rankings. Results will appear here automatically."
-            }
-            action={() => router.push("/import")}
-          />
-        )}
-        {rows.length > limit && (
-          <Button
-            outline
-            label="Show more segments"
-            onPress={() => setLimit((n) => n + 20)}
-          />
-        )}
-        {Boolean(status) && (
-          <T muted size={12} accessibilityLiveRegion="polite">
-            {status}
-          </T>
-        )}
+            {rows.length ? (
+              rows
+                .slice(0, limit)
+                .map((segment) => (
+                  <SegmentRow
+                    key={segment.id}
+                    segment={segment}
+                    kind={kind}
+                    minimal
+                  />
+                ))
+            ) : (
+              <Empty
+                title={
+                  query
+                    ? "No matching segments"
+                    : result
+                      ? "No segments in this list"
+                      : "Rankings are waiting for data"
+                }
+                body={
+                  query
+                    ? "Try another road name."
+                    : "Import the raw files to calculate ward rankings. Results will appear here automatically."
+                }
+                action={() => router.push("/import")}
+              />
+            )}
+          </View>
+          {rows.length > limit && (
+            <Button
+              outline
+              label="Show more segments"
+              onPress={() => setLimit((n) => n + 20)}
+            />
+          )}
+          {Boolean(status) && (
+            <T muted size={12} accessibilityLiveRegion="polite">
+              {status}
+            </T>
+          )}
+        </View>
       </Screen>
       <Sheet
-        title={sheet === "sort" ? "Sort rankings" : "Export rankings"}
+        title={
+          sheet === "kind"
+            ? "Ranking type"
+            : sheet === "sort"
+              ? "Sort rankings"
+              : "Export rankings"
+        }
         visible={!!sheet}
         onClose={() => setSheet("")}
       >
-        {sheet === "sort" ? (
+        {sheet === "kind" ? (
+          (["combined", "vc", "collisions"] as RankKind[]).map((key) => (
+            <Chip
+              key={key}
+              label={
+                key === "combined"
+                  ? "Combined"
+                  : key === "vc"
+                    ? "V/C ratio"
+                    : "Collisions"
+              }
+              active={kind === key}
+              onPress={() => {
+                setKind(key);
+                setLimit(20);
+                setSheet("");
+              }}
+            />
+          ))
+        ) : sheet === "sort" ? (
           sorts.map((s) => (
             <Chip
               key={s}
@@ -230,6 +307,15 @@ export default function Rankings() {
               disabled={!result || busy}
               onPress={() => save(false)}
             />
+            {allWards && (
+              <Button
+                label={
+                  busy ? "Preparing workbook…" : "Export citywide rankings"
+                }
+                disabled={!result || busy}
+                onPress={() => save(false, true)}
+              />
+            )}
             <Button
               outline
               label="Export all 8 wards"

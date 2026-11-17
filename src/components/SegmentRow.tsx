@@ -1,18 +1,22 @@
+import { router } from "expo-router";
 import { useState } from "react";
 import { Pressable, View } from "react-native";
-import { router } from "expo-router";
-import { SegmentResult, RankKind } from "../analysis/types";
+import { RankKind, SegmentResult } from "../analysis/types";
 import { useFlow } from "../store/useFlow";
-import { format, fonts, useTheme } from "../theme";
+import { fonts, format, useTheme } from "../theme";
 import { Button, Card, Row, T } from "./ui";
 export function SegmentRow({
   segment: s,
   kind = "combined",
   compact = false,
+  minimal = false,
+  wardLabel,
 }: {
   segment: SegmentResult;
   kind?: RankKind;
   compact?: boolean;
+  minimal?: boolean;
+  wardLabel?: number;
 }) {
   const [expanded, setExpanded] = useState(false),
     c = useTheme();
@@ -23,18 +27,33 @@ export function SegmentRow({
         ? s.vcRank
         : s.collisionRank;
   return (
-    <Card style={{ padding: 14, gap: 10 }}>
+    <Card
+      style={{
+        padding: minimal ? 16 : 14,
+        gap: 10,
+        ...(minimal
+          ? {
+              borderRadius: 18,
+              borderWidth: 1,
+              borderColor: c.border,
+              backgroundColor: c.background,
+            }
+          : {}),
+      }}
+    >
       <Pressable
         accessibilityRole="button"
         accessibilityLabel={`${s.road}, segment ${s.index}, rank ${rank}. ${expanded ? "Collapse" : "Expand"} details`}
+        accessibilityState={{ expanded }}
         onPress={() => setExpanded(!expanded)}
+        style={{ minHeight: 44, justifyContent: "center" }}
       >
         <Row>
           <View
             style={{
-              width: 38,
-              height: 38,
-              borderRadius: 12,
+              width: minimal ? 32 : 38,
+              height: minimal ? 32 : 38,
+              borderRadius: minimal ? 16 : 12,
               alignItems: "center",
               justifyContent: "center",
               backgroundColor: (rank ?? 99) <= 3 ? c.primary : c.primaryTint,
@@ -49,12 +68,17 @@ export function SegmentRow({
             </T>
           </View>
           <View style={{ flex: 1 }}>
-            <T style={{ fontFamily: fonts.bold }}>{s.road}</T>
+            <T size={minimal ? 14 : 15} style={{ fontFamily: fonts.bold }}>
+              {s.road}{" "}
+              <T muted size={12}>
+                · {s.lengthMi.toFixed(2)} mi
+              </T>
+            </T>
             <T muted size={12}>
               {s.from && s.to
                 ? `${s.from} → ${s.to}`
-                : `Segment ${s.index} of ${s.of}`}{" "}
-              · {s.lengthMi.toFixed(2)} mi
+                : `Segment ${s.index} of ${s.of}`}
+              {wardLabel ? ` · Ward ${wardLabel}` : ""}
             </T>
           </View>
           {!compact && (

@@ -1,3 +1,4 @@
+import { fileDisplayName } from "../../services/displayNames";
 import { router } from "expo-router";
 import { ChevronDown, ChevronRight, Trash2, Upload } from "lucide-react-native";
 import { useState } from "react";
@@ -115,7 +116,7 @@ export default function Menu() {
                       <FileBadge label={f.type} />
                       <View style={{ flex: 1 }}>
                         <T size={13} style={{ fontFamily: fonts.bold }}>
-                          {f.name}
+                          {fileDisplayName(f)}
                         </T>
                         <T muted size={11}>
                           {f.summary}
@@ -124,7 +125,7 @@ export default function Menu() {
                       {source === "uploaded" && (
                         <IconButton
                           icon={Trash2}
-                          label={`Remove ${f.name}`}
+                          label={`Remove ${fileDisplayName(f)}`}
                           onPress={() => {
                             setRemove(f.name);
                             setSheet("remove");
@@ -441,7 +442,11 @@ export default function Menu() {
       >
         {sheet === "remove" ? (
           <>
-            <T>{remove}</T>
+            <T>
+              {fileDisplayName(
+                state.files.find((f) => f.name === remove) ?? { name: remove },
+              )}
+            </T>
             <T muted>
               Rankings will be recalculated without this file. The previous run
               can be restored.

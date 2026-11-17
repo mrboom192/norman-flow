@@ -4,6 +4,7 @@ import { View } from "react-native";
 import { useFlow } from "../store/useFlow";
 import { useTheme } from "../theme";
 import { RoadMap } from "./RoadMap";
+import { SegmentLengthLegend } from "./SegmentLengthLegend";
 import { IconButton, T } from "./ui";
 
 export function MapPreviewCard() {
@@ -75,21 +76,23 @@ export function MapPreviewCard() {
             padding: 10,
           }}
         >
-          <View style={{ width: 16, height: 3, backgroundColor: c.mapBlue }} />
-          <T muted size={11}>
-            Roads (1 mi+)
-          </T>
-          <View
-            style={{
-              width: 12,
-              height: 12,
-              backgroundColor: c.primaryTint,
-              borderWidth: 1,
-              borderColor: c.border,
-              borderRadius: 3,
-              marginLeft: 4,
-            }}
-          />
+          <SegmentLengthLegend />
+          <View style={{ flexDirection: "row", marginLeft: 4, gap: 2 }}>
+            {c.wardFills.map((fill, index) => (
+              <View
+                key={fill}
+                style={{
+                  width: 4,
+                  height: 12,
+                  backgroundColor: fill,
+                  borderWidth: 0.5,
+                  borderColor: c.wardStrokes[index],
+                  borderRadius: 2,
+                  opacity: c.wardFillOpacity,
+                }}
+              />
+            ))}
+          </View>
           <T muted size={11}>
             Wards
           </T>

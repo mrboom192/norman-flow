@@ -7,6 +7,7 @@ config.resolver.assetExts = [
   ...new Set([
     ...config.resolver.assetExts,
     "csv",
+    "geojson",
     "xlsx",
     "xls",
     "kml",

@@ -1,3 +1,5 @@
+import { rankSegments, rankingVersion } from "./rankings";
+import { wardLayer, segmentLayer, validateJoin } from "./prepared";
 import capacity from "../config/capacity.json";
 import { Inputs, Results, SegmentResult, Settings } from "./types";
 import {
@@ -15,7 +17,8 @@ export const defaultSettings: Settings = {
 function capacityFor(s: SegmentResult, settings: Settings) {
   const lanes = settings.laneOverrides[s.id] ?? s.lanes;
   s.lanes = lanes;
-  if (s.laneCoverage < 100) s.flags.push("Check aerial view");
+  if (s.laneCoverage != null && s.laneCoverage < 100)
+    s.flags.push("Check aerial view");
   if (!lanes) {
     s.flags.push("Lane count unknown");
     return;
@@ -34,25 +37,6 @@ function capacityFor(s: SegmentResult, settings: Settings) {
   if (!value) s.flags.push("No capacity for this facility");
   return value;
 }
-function ranks(
-  rows: SegmentResult[],
-  value: (r: SegmentResult) => number,
-  field: "vcRank" | "collisionRank" | "combinedRank",
-  ascending = false,
-) {
-  rows.sort(
-    (a, b) =>
-      (ascending ? 1 : -1) * (value(a) - value(b)) ||
-      (field === "combinedRank" ? (b.vc ?? 0) - (a.vc ?? 0) : 0) ||
-      a.id.localeCompare(b.id),
-  );
-  let rank = 0;
-  rows.forEach((r, i) => {
-    if (!i || value(r) !== value(rows[i - 1])) rank = i + 1;
-    r[field] = rank;
-  });
-  return rows;
-}
 export function runPipeline(
   inputs: Inputs,
   options: Partial<Settings> = {},
@@ -61,22 +45,52 @@ export function runPipeline(
   const settings = { ...defaultSettings, ...options };
   if (!Number.isFinite(settings.matchDistance) || settings.matchDistance <= 0)
     throw new Error("Match distance must be greater than zero.");
+  if (inputs.summaries) validateJoin(inputs.segments, inputs.summaries);
+  const summaryById = new Map(inputs.summaries?.map((r) => [r.id, r]));
   const segments: SegmentResult[] = [...inputs.segments]
     .sort((a, b) => a.id.localeCompare(b.id))
     .map((s) => ({
       ...s,
       wards:
         inputs.wards.length &&
-        (!s.wards.length || inputs.wards.some((w) => w.source !== s.source))
+        (!s.wards.length ||
+          inputs.wards.some(
+            (w) =>
+              w.source !== s.source &&
+              !(s.source === segmentLayer && w.source === wardLayer),
+          ))
           ? assignWards(s, inputs.wards)
           : [...s.wards],
-      collisions: 0,
+      collisions: s.preparedStatus && !inputs.collisions.length ? null : 0,
       flags: [],
     }));
   segments.forEach((s) => {
-    s.capacity = capacityFor(s, settings);
+    const row = summaryById.get(s.id);
+    if (row) {
+      s.facility = row.facility;
+      s.laneSource = row.laneSource;
+      s.summarySource = row.source;
+      s.divided = /undivided/i.test(row.facility)
+        ? false
+        : /divided/i.test(row.facility)
+          ? true
+          : undefined;
+      s.maxVolume = row.volume;
+      if (!inputs.collisions.length) s.collisions = row.collisions;
+    }
+    const mapped = capacityFor(s, settings);
+    // Preserve the verified facility capacity, including categories absent from the legacy table.
+    const adjusted =
+      row &&
+      mapped !== undefined &&
+      mapped !== capacityFor({ ...s, flags: [] }, defaultSettings);
+    s.capacity =
+      row && !settings.laneOverrides[s.id] && !adjusted ? row.capacity : mapped;
+    if (s.capacity)
+      s.flags = s.flags.filter((f) => f !== "No capacity for this facility");
   });
   const result: Results = {
+    rankingVersion,
     runAt,
     segments,
     wards: {},
@@ -86,7 +100,9 @@ export function runPipeline(
       countsUnmatched: 0,
       collisionsMatched: 0,
       collisionsUnmatched: 0,
-      laneChecks: segments.filter((s) => s.laneCoverage < 100).length,
+      laneChecks: segments.filter(
+        (s) => s.laneCoverage != null && s.laneCoverage < 100,
+      ).length,
     },
     settings,
     sources: [
@@ -94,8 +110,10 @@ export function runPipeline(
         [
           ...inputs.segments,
           ...inputs.wards,
+          ...(inputs.summaries ?? []),
           ...inputs.traffic,
           ...inputs.collisions,
+          ...(inputs.crashPoints ?? []),
         ].map((r) => r.source),
       ),
     ].sort(),
@@ -157,7 +175,7 @@ export function runPipeline(
       : s.maxVolume === undefined
         ? "Segment has no traffic count"
         : !s.rankable
-          ? "Short road is map-only"
+          ? (s.preparedStatus ?? "Short road is map-only")
           : undefined;
     if (reason)
       result.unmatched.push({
@@ -169,29 +187,15 @@ export function runPipeline(
         reason,
       });
     else {
-      s!.collisions++;
+      s!.collisions = (s!.collisions ?? 0) + 1;
       result.diagnostics.collisionsMatched++;
     }
   }
   for (let ward = 1; ward <= 8; ward++) {
-    const rows = segments
-      .filter(
-        (s) =>
-          s.rankable && s.wards.includes(ward) && s.maxVolume !== undefined,
-      )
-      .map((s) => ({ ...s, flags: [...s.flags] }));
-    const vc = ranks(
-      rows.filter((s) => s.vc !== undefined),
-      (r) => r.vc!,
-      "vcRank",
+    result.wards[ward] = rankSegments(
+      segments.filter((s) => s.wards.includes(ward)),
+      Boolean(inputs.summaries?.length),
     );
-    const collisions = ranks([...rows], (r) => r.collisions, "collisionRank");
-    const combined = rows.filter((s) => s.vc !== undefined && s.collisions > 0);
-    combined.forEach((s) => {
-      s.combinedScore = s.vcRank! + s.collisionRank!;
-    });
-    ranks(combined, (r) => r.combinedScore!, "combinedRank", true);
-    result.wards[ward] = { vc, collisions, combined };
   }
   result.diagnostics.countsUnmatched = result.unmatched.filter(
     (r) => r.kind === "Traffic",

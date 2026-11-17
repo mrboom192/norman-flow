@@ -18,7 +18,15 @@ export function roadNames(road: string) {
   return [
     normalizeRoad(road.replace(/\([^)]*\)/g, "")),
     ...Array.from(road.matchAll(/\(([^)]+)\)/g), (m) => normalizeRoad(m[1])),
-  ].filter(Boolean);
+  ]
+    .filter(Boolean)
+    .flatMap((name) => {
+      // A single corridor in the prepared layer can span two named quadrants.
+      const pair = name.match(/^(.*) (NE|NW|SE|SW)\/(NE|NW|SE|SW)$/);
+      return pair
+        ? [name, pair[1] + " " + pair[2], pair[1] + " " + pair[3]]
+        : [name];
+    });
 }
 export const sameRoad = (a: string, b: string) =>
   roadNames(a).some((n) => roadNames(b).includes(n));

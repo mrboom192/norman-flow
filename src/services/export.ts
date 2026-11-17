@@ -1,9 +1,10 @@
+import { rankSegments } from "../analysis/rankings";
 import * as XLSX from "xlsx";
 import JSZip from "jszip";
 import { Results, SegmentResult } from "../analysis/types";
 export async function exportWorkbook(
   result: Results,
-  ward?: number,
+  ward?: number | "citywide",
 ): Promise<Uint8Array> {
   const workbook = XLSX.utils.book_new();
   const columns = [
@@ -34,8 +35,12 @@ export async function exportWorkbook(
     s.collisionRank,
     s.combinedScore,
   ];
-  for (const n of ward ? [ward] : [1, 2, 3, 4, 5, 6, 7, 8]) {
-    const lists = result.wards[n];
+  for (const n of ward === "citywide"
+    ? [0]
+    : ward
+      ? [ward]
+      : [1, 2, 3, 4, 5, 6, 7, 8]) {
+    const lists = n === 0 ? rankSegments(result.segments) : result.wards[n];
     const data: unknown[][] = [
       [
         "Combined",
@@ -65,7 +70,11 @@ export async function exportWorkbook(
     sheet["!cols"] = Array.from({ length: 32 }, (_, i) => ({
       wch: i % 11 === 1 ? 36 : 18,
     }));
-    XLSX.utils.book_append_sheet(workbook, sheet, `Ward ${n}`);
+    XLSX.utils.book_append_sheet(
+      workbook,
+      sheet,
+      n === 0 ? "Citywide" : `Ward ${n}`,
+    );
   }
   const plain = (key: string) =>
     key

@@ -1,7 +1,9 @@
+import { rankingVersion } from "../analysis/rankings";
 import { Asset } from "expo-asset";
 import { File } from "expo-file-system";
 import { Platform } from "react-native";
 import { baseAssets } from "./base-assets.generated";
+import { validateJoin } from "../analysis/prepared";
 import { parseFile } from "./files";
 import { combine, DatasetFile, flowStorage, useFlow } from "../store/useFlow";
 import { runPipeline } from "../analysis/pipeline";
@@ -51,7 +53,10 @@ async function load(
       (f) =>
         f.source === "base" &&
         f.name === asset.name &&
-        f.baseVersion === asset.version,
+        f.baseVersion === asset.version &&
+        // Older parsed summaries omitted the published marker rank.
+        (!f.data.summaries?.length ||
+          f.data.summaries.some((r) => r.cityCombinedRank !== undefined)),
     );
     if (cached) {
       files.push(cached);
@@ -85,6 +90,23 @@ async function load(
       );
     }
   }
+  // A partially replaced bundle must not publish stale or cross-joined ranks.
+  for (const file of [...files]) {
+    if (!file.data.summaries) continue;
+    try {
+      validateJoin(
+        files.flatMap((f) => f.data.segments),
+        file.data.summaries,
+      );
+    } catch (error) {
+      issues.push(
+        file.name +
+          ": " +
+          (error instanceof Error ? error.message : String(error)),
+      );
+      files.splice(files.indexOf(file), 1);
+    }
+  }
   files.push(...saved.files.filter((f) => f.source !== "base"));
   await progress(
     2,
@@ -96,7 +118,11 @@ async function load(
     files.length !== saved.files.length ||
     files.some((f, i) => f !== saved.files[i]);
   // Reuse the saved analysis when the bundled assets and uploads are unchanged.
-  if (changed || (files.length > 0 && !saved.results)) {
+  if (
+    changed ||
+    (files.length > 0 &&
+      (!saved.results || saved.results.rankingVersion !== rankingVersion))
+  ) {
     const results = files.length
       ? runPipeline(combine(files), saved.settings, new Date().toISOString())
       : null;

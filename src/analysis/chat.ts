@@ -21,9 +21,12 @@ export function answerQuestion(
       (s) => s.index === index && normalized.includes(normalizeRoad(s.road)),
     );
     return {
-      text: s
-        ? `${s.road}, segment ${s.index}, has ${s.collisions} matched collisions${s.maxVolume === undefined ? " and no matched traffic count; it is excluded from rankings" : ""}.`
-        : "I couldn’t find that road segment in the loaded analysis. Try the full road name and segment number.",
+      text:
+        s?.collisions === null
+          ? "The supplied data has no collision total for that segment."
+          : s
+            ? `${s.road}, segment ${s.index}, has ${s.collisions} matched collisions${s.maxVolume === undefined ? " and no matched traffic count; it is excluded from rankings" : ""}.`
+            : "I couldn’t find that road segment in the loaded analysis. Try the full road name and segment number.",
     };
   }
   const faq = faqs.find((f) => f.keywords.test(question));

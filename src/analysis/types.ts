@@ -13,7 +13,9 @@ export type Segment = {
   end: Coordinate;
   geometry: Coordinate[];
   lanes: number | null;
-  laneCoverage: number;
+  laneCoverage: number | null;
+  preparedStatus?: string;
+  publishedRanked?: boolean;
   travelDirection: string;
   facility?: string;
   divided?: boolean;
@@ -46,11 +48,13 @@ export type Collision = {
   related: Record<string, RawRow[]>;
 };
 export type SegmentResult = Segment & {
+  summarySource?: string;
+  laneSource?: string;
   maxVolume?: number;
   volumeYear?: number;
   capacity?: number;
   vc?: number;
-  collisions: number;
+  collisions: number | null;
   vcRank?: number;
   collisionRank?: number;
   combinedScore?: number;
@@ -67,11 +71,35 @@ export type Unmatched = {
 };
 export type RankKind = "combined" | "vc" | "collisions";
 export type CapacityTable = Record<string, { c: number; e: number }>;
+export type SegmentSummary = {
+  id: string;
+  cityCombinedRank?: number;
+  volume: number;
+  collisions: number;
+  capacity: number;
+  facility: string;
+  laneSource: string;
+  source: string;
+};
 export type Inputs = {
+  crashPoints?: CrashPoint[];
+  summaries?: SegmentSummary[];
   segments: Segment[];
   wards: Ward[];
   traffic: Traffic[];
   collisions: Collision[];
+};
+/** Observed crash coordinates for display; never re-count these as raw collisions. */
+export type CrashPoint = {
+  id: string;
+  point: Coordinate;
+  year: number;
+  date: string;
+  street: string;
+  crossStreet: string;
+  segment: string;
+  onStudySegment: boolean;
+  source: string;
 };
 export type Settings = {
   matchDistance: number;
@@ -79,6 +107,7 @@ export type Settings = {
   capacities: CapacityTable;
 };
 export type Results = {
+  rankingVersion?: number;
   runAt: string;
   segments: SegmentResult[];
   wards: Record<number, Record<RankKind, SegmentResult[]>>;

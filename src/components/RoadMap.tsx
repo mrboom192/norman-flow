@@ -1,3 +1,15 @@
+import { CrashPointDots } from "./CrashPointDots";
+import {
+  type ComponentProps,
+  type ComponentType,
+  type ReactNode,
+  useRef,
+  useState,
+  useMemo,
+} from "react";
+import { topSegmentMarkers, visibleCrashPoints } from "../analysis/crashMap";
+import { CrashDensity } from "./CrashDensity";
+import { heatColor, heatRange, heatValue } from "../analysis/heatmap";
 import { View } from "react-native";
 import Svg, {
   Path,
@@ -6,11 +18,94 @@ import Svg, {
   Defs,
   Pattern,
   Rect,
+  Circle,
+  G,
+  Text as SvgText,
 } from "react-native-svg";
-import { useTheme } from "../theme";
+import { segmentLengthColor, useTheme } from "../theme";
 import { useFlow, visibleGeometry } from "../store/useFlow";
 import { SegmentResult } from "../analysis/types";
 import { T } from "./ui";
+// The web renderer supports DOM click handlers; its shared native types omit them.
+const WebPolyline = Polyline as ComponentType<
+  ComponentProps<typeof Polyline> & { onClick?: () => void }
+>;
+// Keep pointer updates local: dragging changes the SVG viewport without rebuilding road paths.
+function MapSurface({
+  children,
+  preview,
+  zoom,
+}: {
+  children: ReactNode;
+  preview: boolean;
+  zoom: number;
+}) {
+  const [center, setCenter] = useState({ x: 0, y: 0 });
+  const drag = useRef<{
+    id: number;
+    x: number;
+    y: number;
+    moved: boolean;
+  } | null>(null);
+  const dragged = useRef(false);
+  return (
+    <div
+      style={{
+        position: "absolute",
+        inset: 0,
+        touchAction: preview ? "auto" : "none",
+      }}
+      onPointerDown={(e) => {
+        if (preview || !e.isPrimary || e.button !== 0) return;
+        dragged.current = false;
+        drag.current = {
+          id: e.pointerId,
+          x: e.clientX,
+          y: e.clientY,
+          moved: false,
+        };
+      }}
+      onPointerMove={(e) => {
+        const d = drag.current;
+        if (!d || d.id !== e.pointerId) return;
+        const dx = e.clientX - d.x,
+          dy = e.clientY - d.y;
+        if (!d.moved && Math.hypot(dx, dy) < 4) return;
+        e.currentTarget.setPointerCapture(e.pointerId);
+        d.moved = dragged.current = true;
+        d.x = e.clientX;
+        d.y = e.clientY;
+        const rect = e.currentTarget.getBoundingClientRect();
+        const factor =
+          360 / (Math.max(1, Math.min(rect.width, rect.height)) * zoom);
+        setCenter((c) => ({ x: c.x - dx * factor, y: c.y - dy * factor }));
+      }}
+      onPointerUp={() => {
+        drag.current = null;
+      }}
+      onPointerCancel={() => {
+        drag.current = null;
+      }}
+      onPointerLeave={() => {
+        if (!drag.current?.moved) drag.current = null;
+      }}
+      onClickCapture={(e) => {
+        if (dragged.current) {
+          e.stopPropagation();
+          dragged.current = false;
+        }
+      }}
+    >
+      <Svg
+        width="100%"
+        height="100%"
+        viewBox={`${center.x * zoom} ${center.y * zoom} 360 360`}
+      >
+        {children}
+      </Svg>
+    </div>
+  );
+}
 export type MapProps = {
   preview?: boolean;
   onSelectSegment?: (id: string) => void;
@@ -18,6 +113,7 @@ export type MapProps = {
   zoom?: number;
   mode?: string;
   metric?: "vc" | "collisions";
+  crashSegmentIds?: Set<string>;
 };
 export function RoadMap({
   preview = false,
@@ -26,21 +122,47 @@ export function RoadMap({
   zoom = 1,
   mode = "Map",
   metric = "vc",
+  crashSegmentIds,
 }: MapProps) {
   const c = useTheme(),
     state = useFlow(),
-    data = visibleGeometry(state.files),
-    roads =
-      segments ??
-      state.results?.segments.filter((s) =>
-        data.segments.some((d) => d.id === s.id),
-      ) ??
-      [];
-  const points = [
-    ...roads.flatMap((s) => s.geometry),
-    ...data.wards.flatMap((w) => w.rings.flat()),
-  ];
-  if (!points.length)
+    data = useMemo(() => visibleGeometry(state.files), [state.files]);
+  const roads = useMemo(() => {
+    if (segments) return segments;
+    const visible = new Set(data.segments.map((s) => s.id));
+    return state.results?.segments.filter((s) => visible.has(s.id)) ?? [];
+  }, [segments, state.results, data.segments]);
+  const crashPoints = useMemo(
+    () => visibleCrashPoints(state.files, crashSegmentIds),
+    [state.files, crashSegmentIds],
+  );
+  const markers = useMemo(
+    () => topSegmentMarkers(state.files, roads),
+    [state.files, roads],
+  );
+  const crashHeat = !preview && state.crashHeatmapVisible;
+  const crashDots = !preview && state.crashPointsVisible;
+  const vcHeat = mode === "Heat" && metric === "vc";
+  const range = heatRange(roads, metric);
+  const bounds = useMemo(() => {
+    let minLat = Infinity,
+      maxLat = -Infinity,
+      minLon = Infinity,
+      maxLon = -Infinity;
+    const include = ([lat, lon]: number[]) => {
+      minLat = Math.min(minLat, lat);
+      maxLat = Math.max(maxLat, lat);
+      minLon = Math.min(minLon, lon);
+      maxLon = Math.max(maxLon, lon);
+    };
+    data.segments.forEach((s) => s.geometry.forEach(include));
+    data.wards.forEach((w) => w.rings.forEach((r) => r.forEach(include)));
+    if (minLat === Infinity && (crashHeat || crashDots))
+      crashPoints.forEach((p) => include(p.point));
+    return { minLat, maxLat, minLon, maxLon };
+  }, [data, crashPoints, crashHeat, crashDots]);
+  const { minLat, maxLat, minLon, maxLon } = bounds;
+  if (minLat === Infinity)
     return (
       <View
         style={{
@@ -81,12 +203,6 @@ export function RoadMap({
         </View>
       </View>
     );
-  const lats = points.map((p) => p[0]),
-    lons = points.map((p) => p[1]),
-    minLat = Math.min(...lats),
-    maxLat = Math.max(...lats),
-    minLon = Math.min(...lons),
-    maxLon = Math.max(...lons);
   const spanX = Math.max(
       (maxLon - minLon) * Math.cos((minLat * Math.PI) / 180),
       0.001,
@@ -97,40 +213,60 @@ export function RoadMap({
     `${180 + (lon - (minLon + maxLon) / 2) * Math.cos((minLat * Math.PI) / 180) * scale},${180 - (lat - (minLat + maxLat) / 2) * scale}`;
   return (
     <View style={{ flex: 1, backgroundColor: c.mapBackground }}>
-      <Svg width="100%" height="100%" viewBox="0 0 360 360">
+      <MapSurface key={state.mapReset} zoom={zoom} preview={preview}>
         {data.wards.map((w, i) =>
           w.rings.map((ring, j) => (
             <Polygon
               key={`${i}-${j}`}
               points={ring.map(project).join(" ")}
-              fill={c.wardFills[(w.id - 1) % 4]}
-              fillOpacity={0.7}
-              stroke={c.border}
-              strokeWidth={0.8}
+              fill={c.wardFills[(w.id - 1) % c.wardFills.length]}
+              fillOpacity={c.wardFillOpacity * (crashHeat ? 0.25 : 1)}
+              stroke={c.wardStrokes[(w.id - 1) % c.wardStrokes.length]}
+              strokeWidth={c.wardStrokeWidth}
             />
           )),
         )}
+        {crashHeat && <CrashDensity points={crashPoints} project={project} />}
+        {vcHeat &&
+          c.heatGlowLayers.map((layer) =>
+            roads.map((s) => {
+              const value = heatValue(s, metric);
+              if (value === undefined) return null;
+              return (
+                <WebPolyline
+                  key={`heat-${layer.width}-${s.id}`}
+                  points={s.geometry.map(project).join(" ")}
+                  fill="none"
+                  stroke={heatColor(value, range, c.heatColors, c.muted)}
+                  strokeWidth={layer.width}
+                  strokeOpacity={layer.opacity}
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  pointerEvents="none"
+                />
+              );
+            }),
+          )}
         {roads.map((s) => {
           const selected = s.id === state.selected;
-          const high = metric === "vc" ? (s.vc ?? 0) >= 1 : s.collisions > 0;
           const color = selected
             ? c.primary
-            : mode === "Heat"
-              ? (metric === "vc" ? s.vc : s.maxVolume) === undefined
-                ? c.muted
-                : high
-                  ? c.orange
-                  : c.blue
-              : c.mapBlue;
+            : crashHeat
+              ? c.muted
+              : vcHeat
+                ? heatColor(heatValue(s, metric), range, c.heatColors, c.muted)
+                : segmentLengthColor(s.lengthMi);
           return (
-            <Polyline
+            <WebPolyline
               key={s.id}
               points={s.geometry.map(project).join(" ")}
               fill="none"
               stroke={color}
-              strokeWidth={selected ? 5 : preview ? 1 : 2.5}
+              strokeWidth={selected ? 5 : crashHeat ? 0.8 : preview ? 1 : 2.5}
+              strokeOpacity={crashHeat && !selected ? 0.3 : 1}
               strokeLinecap="round"
-              onPress={() =>
+              strokeLinejoin="round"
+              onClick={() =>
                 !preview &&
                 (onSelectSegment
                   ? onSelectSegment(s.id)
@@ -139,7 +275,44 @@ export function RoadMap({
             />
           );
         })}
-      </Svg>
+        {crashDots && <CrashPointDots points={crashPoints} project={project} />}
+        {!preview &&
+          markers.map((marker) => {
+            const [cx, cy] = project(marker.point).split(",").map(Number);
+            return (
+              <G
+                key={`rank-${marker.id}`}
+                onClick={() =>
+                  onSelectSegment
+                    ? onSelectSegment(marker.id)
+                    : state.set({ selected: marker.id })
+                }
+                accessibilityLabel={`Published city combined rank ${marker.rank}: ${marker.road}`}
+              >
+                <Circle cx={cx} cy={cy} r={22} fill="transparent" />
+                <Circle
+                  cx={cx}
+                  cy={cy}
+                  r={10}
+                  fill={c.crashMarker}
+                  stroke={c.white}
+                  strokeWidth={2}
+                />
+                <SvgText
+                  x={cx}
+                  y={cy}
+                  dy={3.5}
+                  textAnchor="middle"
+                  fill={c.white}
+                  fontSize={10}
+                  fontWeight="bold"
+                >
+                  {marker.rank}
+                </SvgText>
+              </G>
+            );
+          })}
+      </MapSurface>
       {mode === "Satellite" && (
         <View
           style={{

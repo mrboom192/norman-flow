@@ -48,6 +48,13 @@ export function combine(files: DatasetFile[]): Inputs {
       ))
         for (const row of f.data[key]) (all[key] as unknown[]).push(row);
   });
+  const activeSummaries = files.filter(
+    (f) => f.data.summaries && (!hasSegments || f.source !== "base"),
+  );
+  const rows =
+    [...activeSummaries].reverse().find((f) => f.source !== "base") ??
+    activeSummaries[activeSummaries.length - 1];
+  if (rows) all.summaries = rows.data.summaries;
   all.segments = [...new Map(all.segments.map((s) => [s.id, s])).values()];
   all.traffic = [
     ...new Map(
@@ -73,6 +80,11 @@ export function combine(files: DatasetFile[]): Inputs {
     );
   });
   all.collisions = [...collisions.values()];
+  const crashFiles = files.filter((f) => f.data.crashPoints);
+  const activeCrashes =
+    [...crashFiles].reverse().find((f) => f.source !== "base") ??
+    crashFiles[crashFiles.length - 1];
+  if (activeCrashes) all.crashPoints = activeCrashes.data.crashPoints;
   return all;
 }
 type State = {
@@ -93,6 +105,8 @@ type State = {
   aliases: Aliases;
   selected: string | null;
   mapReset: number;
+  crashPointsVisible: boolean;
+  crashHeatmapVisible: boolean;
   tour: number | null;
   set: (value: Partial<State>) => void;
   commit: (files: DatasetFile[]) => void;
@@ -111,6 +125,8 @@ type SavedState = Pick<
   | "previous"
   | "settings"
   | "aliases"
+  | "crashPointsVisible"
+  | "crashHeatmapVisible"
 >;
 export const flowStorage = createFlowStorage<SavedState>(Storage, (error) => {
   useFlow.setState({
@@ -133,6 +149,8 @@ export const useFlow = create<State>()(
       aliases: {},
       selected: null,
       mapReset: 0,
+      crashPointsVisible: false,
+      crashHeatmapVisible: false,
       tour: null,
       set,
       commit: (files) => {
@@ -205,6 +223,8 @@ export const useFlow = create<State>()(
         previous: s.previous,
         settings: s.settings,
         aliases: s.aliases,
+        crashPointsVisible: s.crashPointsVisible,
+        crashHeatmapVisible: s.crashHeatmapVisible,
       }),
       onRehydrateStorage: () => (_state, error) => {
         useFlow.setState({

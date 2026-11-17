@@ -32,6 +32,12 @@ export default function Diagnostics() {
               <T muted size={12}>
                 {new Date(result.runAt).toLocaleString()}
               </T>
+              {result.segments.some((s) => s.summarySource) && (
+                <T muted size={12}>
+                  The base CSV supplies segment totals. The matching diagnostics
+                  below count only raw records processed by the app.
+                </T>
+              )}
               <T>
                 {result.diagnostics.countsMatched} traffic counts matched ·{" "}
                 {result.diagnostics.countsUnmatched} unmatched
@@ -60,7 +66,7 @@ export default function Diagnostics() {
             </Row>
             {filter === "Lane checks"
               ? result.segments
-                  .filter((s) => s.laneCoverage < 100)
+                  .filter((s) => s.laneCoverage != null && s.laneCoverage < 100)
                   .slice(0, limit)
                   .map((s) => (
                     <Card key={s.id}>

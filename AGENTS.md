@@ -437,3 +437,12 @@ The current swatches live in `src/theme/palette.ts`; light pink (`#f6b0e8`) is t
 default primary. Existing installs using the former default migrate to light pink;
 other saved accent choices remain. Use `onPrimary` for text/icons on accent fills
 and `primaryText` for readable accent text on the page background.
+
+
+### Current bundled analysis (November 16, 2026)
+
+The prepared City export supersedes the earlier empty-base and 333-segment release notes. It includes 375 segment lines, 8 ward boundaries and 119 verified summary rows. The earlier KMZ fixture and raw-file pipeline remain supported. Keep the newer Home/Menu design, navigation and palette. The app joins the prepared files by the exact padded `key`, retains the published touched wards, computes ward V/C ranks using full precision (two decimals in the interface), and recomputes collision and combined ranks. Tests compare every published ward rank. Collector roads stay excluded; roads without usable counts stay on the map. Unknown collision totals and lane coverage remain missing. See `assets/data/base/README.md` for upload precedence and how to refresh the snapshot. Raw matching diagnostics exclude the summary CSV.
+
+### Ranking and filter update (November 16, 2026)
+
+The user's latest instruction supersedes the earlier competition-rank/tied-rank rules: all V/C, collision, and combined ranks are unique sequential positions (1, 2, 3, 4). Equal metric values are ordered by stable segment ID; equal combined scores are ordered by higher V/C, then segment ID. Combined scores use these sequential component ranks. All on Final Rankings ranks each unique segment citywide; individual ward views rank within that ward. Ranking version 2 invalidates saved results on startup so existing installations recalculate. Published snapshot metrics and ward membership are retained, but its former tied ranks are no longer the expected output. The ranking type selector uses a sheet dropdown alongside Sort.

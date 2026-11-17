@@ -287,7 +287,13 @@ export function Chip({
     </Pressable>
   );
 }
-export function WardPicker() {
+export function WardPicker({
+  all = false,
+  onSelectWard,
+}: {
+  all?: boolean;
+  onSelectWard?: () => void;
+} = {}) {
   const c = useTheme(),
     ward = useFlow((s) => s.ward),
     set = useFlow((s) => s.set);
@@ -300,8 +306,11 @@ export function WardPicker() {
           key={n}
           accessibilityRole="button"
           accessibilityLabel={`Ward ${n}`}
-          accessibilityState={{ selected: ward === n }}
-          onPress={() => set({ ward: n })}
+          accessibilityState={{ selected: !all && ward === n }}
+          onPress={() => {
+            set({ ward: n });
+            onSelectWard?.();
+          }}
           style={{
             flex: 1,
             minHeight: 44,
@@ -309,14 +318,14 @@ export function WardPicker() {
             alignItems: "center",
             justifyContent: "center",
             borderWidth: 1,
-            borderColor: ward === n ? "transparent" : c.border,
-            backgroundColor: ward === n ? c.primary : c.surface,
+            borderColor: !all && ward === n ? "transparent" : c.border,
+            backgroundColor: !all && ward === n ? c.primary : c.surface,
           }}
         >
           <T
             heading
             size={19}
-            style={{ color: ward === n ? c.onPrimary : c.ink }}
+            style={{ color: !all && ward === n ? c.onPrimary : c.ink }}
           >
             {n}
           </T>

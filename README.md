@@ -48,4 +48,4 @@ stages and reports unreadable files without preventing use of available data.
 - `src/app`: Expo Router screens.
 - `assets/data/README.md`: instructions for adding the approved source assets.
 
-The app never recommends projects, prices or fixes. Synthetic unit test records are not displayed in the UI. The base folder is ready for approved datasets. Source PDF, video, optional shapefile and final credits remain pending.
+The app never recommends projects, prices or fixes. Synthetic unit test records are not displayed in the UI. The current base contains the prepared Norman segment rankings and both GeoJSON map layers. Source PDF, video, optional shapefile and final credits remain pending.

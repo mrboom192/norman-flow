@@ -161,8 +161,9 @@ export default function Import() {
               Bring your files together
             </T>
             <T muted size={13} style={{ textAlign: "center" }}>
-              Traffic counts and collisions: CSV or XLSX{"\n"}Road segments and
-              wards: KML or KMZ
+              Crash locations: norman_crash_points.geojson{"\n"}Traffic counts
+              and collisions: CSV or XLSX{"\n"}Road segments and wards: KML or
+              KMZ
             </T>
             <Button
               label={
@@ -236,6 +237,14 @@ export default function Import() {
         )}
         {stage === "preview" && (
           <>
+            {!!next.summaries?.length && next.collisions.length > 0 && (
+              <T muted>
+                Uploaded case records will be used for collision totals in place
+                of the published segment totals. The CSV has no case IDs to
+                deduplicate. Supply the complete collision history for the
+                period you want to rank.
+              </T>
+            )}
             <Card>
               <Row>
                 <T heading size={21}>
@@ -271,6 +280,11 @@ export default function Import() {
                   "Traffic counts",
                   previous.traffic.length,
                   next.traffic.length,
+                ],
+                [
+                  "Crash locations (map only)",
+                  previous.crashPoints?.length ?? 0,
+                  next.crashPoints?.length ?? 0,
                 ],
                 [
                   "Unique collisions",

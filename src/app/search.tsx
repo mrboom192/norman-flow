@@ -1,17 +1,24 @@
+import { visibleCrashPoints } from "../analysis/crashMap";
+import { fileDisplayName } from "../services/displayNames";
 import { router, useFocusEffect, useLocalSearchParams } from "expo-router";
 import {
   ArrowLeft,
+  Map as MapIcon,
+  Satellite,
+  Flame,
   Layers,
   Minus,
   Plus,
   RotateCcw,
   SlidersHorizontal,
 } from "lucide-react-native";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { BackHandler, Pressable, StyleSheet, Switch, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Sheet } from "../components/Sheet";
 import { RoadMap } from "../components/RoadMap";
+import { SegmentLengthLegend } from "../components/SegmentLengthLegend";
+import { HeatLegend } from "../components/HeatLegend";
 import {
   Button,
   Chip,
@@ -25,6 +32,11 @@ import {
 } from "../components/ui";
 import { useFlow, visibleGeometry } from "../store/useFlow";
 import { fonts, format, useTheme } from "../theme";
+const mapModes = [
+  { label: "Map", icon: MapIcon },
+  { label: "Satellite", icon: Satellite },
+  { label: "Heat", icon: Flame },
+];
 const snapPoints = ["45%", "90%"];
 type MapSheet = "roads" | "filters" | "layers" | "";
 
@@ -42,7 +54,7 @@ export default function SearchScreen() {
     [lanes, setLanes] = useState(false),
     [crashes, setCrashes] = useState(false),
     [counts, setCounts] = useState(false),
-    [metric, setMetric] = useState<"vc" | "collisions">("vc");
+    [metric, setMetric] = useState<"vc" | "collisions">("collisions");
   const [lastQuery, setLastQuery] = useState(params.q),
     [lastReset, setLastReset] = useState(state.mapReset);
   if (params.q !== lastQuery) {
@@ -105,22 +117,45 @@ export default function SearchScreen() {
     pendingNavigation.current = action;
     setSheet("");
   }
-  const visibleSegments = new Set(
-    visibleGeometry(state.files).segments.map((s) => s.id),
+  const matching = useMemo(() => {
+    const visibleSegments = new Set(
+      visibleGeometry(state.files).segments.map((s) => s.id),
+    );
+    return (
+      state.results?.segments.filter(
+        (s) =>
+          visibleSegments.has(s.id) &&
+          (!wardFilter || s.wards.includes(state.ward)) &&
+          (!lanes || (s.lanes ?? 0) >= 4) &&
+          (!crashes || (s.collisions ?? 0) > 0) &&
+          (!counts || s.maxVolume !== undefined) &&
+          (!query ||
+            s.road.toLowerCase().includes(query.toLowerCase()) ||
+            (/^ward\s*[1-8]$/i.test(query) &&
+              s.wards.includes(Number(query.match(/[1-8]/)?.[0])))),
+      ) ?? []
+    );
+  }, [
+    state.files,
+    state.results,
+    state.ward,
+    wardFilter,
+    lanes,
+    crashes,
+    counts,
+    query,
+  ]);
+  const crashSegmentIds = useMemo(
+    () =>
+      wardFilter || lanes || crashes || counts || query
+        ? new Set(matching.map((s) => s.id))
+        : undefined,
+    [wardFilter, lanes, crashes, counts, query, matching],
   );
-  const matching =
-    state.results?.segments.filter(
-      (s) =>
-        visibleSegments.has(s.id) &&
-        (!wardFilter || s.wards.includes(state.ward)) &&
-        (!lanes || (s.lanes ?? 0) >= 4) &&
-        (!crashes || s.collisions > 0) &&
-        (!counts || s.maxVolume !== undefined) &&
-        (!query ||
-          s.road.toLowerCase().includes(query.toLowerCase()) ||
-          (/^ward\s*[1-8]$/i.test(query) &&
-            s.wards.includes(Number(query.match(/[1-8]/)?.[0])))),
-    ) ?? [];
+  const crashCount = useMemo(
+    () => visibleCrashPoints(state.files, crashSegmentIds).length,
+    [state.files, crashSegmentIds],
+  );
   return (
     <View style={{ flex: 1, backgroundColor: c.background }}>
       <View style={StyleSheet.absoluteFill}>
@@ -129,6 +164,7 @@ export default function SearchScreen() {
           zoom={zoom}
           mode={mode}
           metric={metric}
+          crashSegmentIds={crashSegmentIds}
           onSelectSegment={(id) => {
             state.set({ selected: id });
             setSheet("roads");
@@ -189,7 +225,14 @@ export default function SearchScreen() {
               />
             )}
           </View>
-          <Row style={{ alignItems: "flex-start" }}>
+          <View
+            pointerEvents="box-none"
+            style={{
+              flexDirection: "row",
+              justifyContent: "space-between",
+              alignItems: "flex-start",
+            }}
+          >
             <View
               style={{
                 flexDirection: "row",
@@ -200,29 +243,27 @@ export default function SearchScreen() {
                 borderColor: c.border,
               }}
             >
-              {["Map", "Satellite", "Heat"].map((m) => (
+              {mapModes.map(({ label: m, icon: Icon }) => (
                 <Pressable
                   key={m}
-                  onPress={() => setMode(m)}
+                  onPress={() => {
+                    setMode(m);
+                    if (m === "Heat" && metric === "collisions")
+                      state.set({ crashHeatmapVisible: true });
+                  }}
                   accessibilityRole="button"
+                  accessibilityLabel={m}
                   accessibilityState={{ selected: m === mode }}
                   style={{
                     minHeight: 44,
-                    paddingHorizontal: 12,
+                    width: 44,
+                    alignItems: "center",
                     justifyContent: "center",
                     borderRadius: 10,
                     backgroundColor: m === mode ? c.primary : "transparent",
                   }}
                 >
-                  <T
-                    size={13}
-                    style={{
-                      fontFamily: fonts.bold,
-                      color: m === mode ? c.onPrimary : c.muted,
-                    }}
-                  >
-                    {m}
-                  </T>
+                  <Icon size={21} color={m === mode ? c.onPrimary : c.muted} />
                 </Pressable>
               ))}
             </View>
@@ -256,7 +297,7 @@ export default function SearchScreen() {
                 style={{ borderRadius: 14 }}
               />
             </View>
-          </Row>
+          </View>
         </View>
       </View>
       <View
@@ -268,7 +309,18 @@ export default function SearchScreen() {
           gap: 12,
         }}
       >
-        {mode === "Heat" && (
+        {mode !== "Heat" && !state.crashHeatmapVisible && (
+          <View
+            style={{
+              padding: 10,
+              borderRadius: 12,
+              backgroundColor: c.surface,
+            }}
+          >
+            <SegmentLengthLegend />
+          </View>
+        )}
+        {(mode === "Heat" || state.crashHeatmapVisible) && (
           <View
             style={{
               padding: 10,
@@ -280,20 +332,25 @@ export default function SearchScreen() {
               <Chip
                 label="V/C"
                 active={metric === "vc"}
-                onPress={() => setMetric("vc")}
+                onPress={() => {
+                  setMetric("vc");
+                  state.set({ crashHeatmapVisible: false });
+                }}
               />
               <Chip
-                label="Collisions"
+                label="Crash density"
                 active={metric === "collisions"}
-                onPress={() => setMetric("collisions")}
+                onPress={() => {
+                  setMetric("collisions");
+                  state.set({ crashHeatmapVisible: true });
+                }}
               />
             </Row>
-            <T size={11} muted>
-              {metric === "vc"
-                ? "Blue: V/C < 1 · Orange: V/C ≥ 1"
-                : "Blue: 0 · Orange: 1+ collisions"}{" "}
-              · — uncomputed
-            </T>
+            <HeatLegend
+              segments={matching}
+              metric={state.crashHeatmapVisible ? "collisions" : metric}
+              crashCount={crashCount}
+            />
           </View>
         )}
         {!matching.length && (
@@ -348,7 +405,9 @@ export default function SearchScreen() {
                     </T>
                     <T muted size={12}>
                       Segment {selected.index} of {selected.of} · Ward{" "}
-                      {selected.wardMajority || "—"}
+                      {selected.wardMajority ||
+                        selected.wards.join(", ") ||
+                        "—"}
                     </T>
                   </View>
                 </Row>
@@ -379,13 +438,28 @@ export default function SearchScreen() {
                   }}
                 >
                   {[
+                    ...(selected.preparedStatus
+                      ? [
+                          [
+                            "Status",
+                            !selected.rankable ||
+                            selected.maxVolume === undefined ||
+                            selected.summarySource
+                              ? selected.preparedStatus
+                              : "Traffic available",
+                          ],
+                          ...(selected.laneSource
+                            ? [["Lane source", selected.laneSource]]
+                            : []),
+                        ]
+                      : []),
                     ["Segment length", `${selected.lengthMi.toFixed(2)} mi`],
                     [
                       "Total street length",
                       `${selected.roadTotalMi.toFixed(2)} mi`,
                     ],
                     [
-                      "Lanes (GIS)",
+                      selected.preparedStatus ? "Lanes" : "Lanes (GIS)",
                       `${format(selected.lanes)} · ${selected.travelDirection || "—"}`,
                     ],
                     [
@@ -410,20 +484,21 @@ export default function SearchScreen() {
                     </View>
                   ))}
                 </View>
-                {selected.laneCoverage < 100 && (
-                  <View
-                    style={{
-                      backgroundColor: c.chipTint,
-                      padding: 10,
-                      borderRadius: 12,
-                    }}
-                  >
-                    <T size={12} style={{ color: c.primaryDeep }}>
-                      Lane count only mapped for {selected.laneCoverage}% of
-                      this segment — check the aerial view.
-                    </T>
-                  </View>
-                )}
+                {selected.laneCoverage != null &&
+                  selected.laneCoverage < 100 && (
+                    <View
+                      style={{
+                        backgroundColor: c.chipTint,
+                        padding: 10,
+                        borderRadius: 12,
+                      }}
+                    >
+                      <T size={12} style={{ color: c.primaryDeep }}>
+                        Lane count only mapped for {selected.laneCoverage}% of
+                        this segment — check the aerial view.
+                      </T>
+                    </View>
+                  )}
               </>
             ) : matching.length ? (
               <>
@@ -483,22 +558,80 @@ export default function SearchScreen() {
           <>
             <Button
               outline
-              label="Upload CSV, XLSX, KML or KMZ"
+              label="Upload CSV, XLSX, KML, KMZ or GeoJSON"
               onPress={() => {
                 navigateAfterClose(() => router.push("/import"));
               }}
             />
+            <T heading size={18}>
+              Crash layers
+            </T>
+            <T muted size={12}>
+              Each crash is one point. The heatmap blends nearby crashes into
+              stronger hotspots within about 200 metres.
+            </T>
+            {[
+              [
+                "Crash locations",
+                "Original points at their recorded coordinates",
+                "crashPointsVisible",
+              ],
+              [
+                "Crash heatmap",
+                "Blurred density · nearby crashes add together",
+                "crashHeatmapVisible",
+              ],
+            ].map(([label, description, key]) => (
+              <Row key={key} style={{ minHeight: 56 }}>
+                <View style={{ flex: 1, gap: 4 }}>
+                  <T size={13}>{label}</T>
+                  <T muted size={11}>
+                    {description}
+                  </T>
+                </View>
+                <Switch
+                  accessibilityLabel={`Show ${label} layer`}
+                  value={
+                    key === "crashPointsVisible"
+                      ? state.crashPointsVisible
+                      : state.crashHeatmapVisible
+                  }
+                  onValueChange={(value) => {
+                    state.set(
+                      key === "crashPointsVisible"
+                        ? { crashPointsVisible: value }
+                        : { crashHeatmapVisible: value },
+                    );
+                    if (
+                      key === "crashHeatmapVisible" &&
+                      !value &&
+                      mode === "Heat" &&
+                      metric === "collisions"
+                    )
+                      setMode("Map");
+                  }}
+                  trackColor={{ true: c.primary }}
+                />
+              </Row>
+            ))}
+            <T muted size={12}>
+              {crashCount.toLocaleString()} crash locations available with the
+              current filters. Both layers use the same source file below.
+            </T>
+            <T heading size={18}>
+              Source files
+            </T>
             {state.files.length ? (
               state.files.map((f) => (
                 <Row key={`${f.source ?? "uploaded"}:${f.name}`}>
                   <View style={{ flex: 1 }}>
-                    <T size={13}>{f.name}</T>
+                    <T size={13}>{fileDisplayName(f)}</T>
                     <T muted size={11}>
                       {f.summary}
                     </T>
                   </View>
                   <Switch
-                    accessibilityLabel={`Show ${f.name}`}
+                    accessibilityLabel={`Show ${fileDisplayName(f)} source file`}
                     value={f.visible}
                     onValueChange={(visible) =>
                       state.set({

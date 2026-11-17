@@ -15,9 +15,44 @@ export const colors = {
   blue: "#2F5FB3",
   blueTint: "#F0F0F0",
   mapBlue: "#3B5BA9",
+  segmentShort: "#e90017",
+  segmentLong: "rgb(154, 0, 243)",
+  segmentOneMile: "#4065d3",
+  crashHeatColors: ["#FFF2A6", "#FDB44B", "#EF642D", "#C52223", "#780016"],
+  crashMarker: "#780016",
+  crashBlurPx: 2,
+  heatColors: ["#84f255", "#fae55a", "#f7b044", "#D55E00", "#9f0000"],
+  heatGlowLayers: [
+    { width: 22, opacity: 0.06 },
+    { width: 15, opacity: 0.1 },
+    { width: 9, opacity: 0.18 },
+  ],
   orange: "#AD5900",
   mapBackground: "#F5F5F5",
-  wardFills: ["#E5E5E5", "#F0F0F0", "#D4D4D4", "#FAFAFA"],
+  // Ward order follows the reference map: coral, sand, lavender, indigo,
+  // yellow, green, cyan and rose. Keep these stable across app themes.
+  wardFills: [
+    "#d5c0ec",
+    "#ebf2aa",
+    "#e08bad",
+    "#6ad3ae",
+    "#fac5ef",
+    "#98E991",
+    "#7bfdff",
+    "#f09e52",
+  ],
+  wardStrokes: [
+    "#c09aea",
+    "#e9f484",
+    "#d76e98",
+    "#3ccc99",
+    "#f693e2",
+    "#72e968",
+    "#54f7fa",
+    "#f19138",
+  ],
+  wardFillOpacity: 0.65,
+  wardStrokeWidth: 1.5,
   darkSurface: "#202020",
   darkMuted: "#B3B3B3",
   darkTint: "#2A2A2A",
@@ -33,6 +68,12 @@ export const fonts = {
   bold: "Inter_600SemiBold",
 };
 export const shape = { card: 22, pill: 999, padding: 20, gap: 18 };
+export function segmentLengthColor(lengthMi: number) {
+  let color = colors.segmentShort;
+  if (0.75 <= lengthMi && lengthMi <= 1.25) color = colors.segmentOneMile;
+  if (lengthMi > 1.25) color = colors.segmentLong;
+  return color;
+}
 export function useTheme() {
   const dark = useFlow((s) => s.dark),
     primary = useFlow((s) => s.primary);
@@ -56,7 +97,6 @@ export function useTheme() {
           blueTint: colors.darkTint,
           blue: "#AAC8FF",
           mapBackground: "#1D1D1D",
-          wardFills: ["#303030", "#262626", "#383838", "#222222"],
           dataSurface: "#242424",
         }
       : {}),

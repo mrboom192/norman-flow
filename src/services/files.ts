@@ -1,6 +1,13 @@
 import * as DocumentPicker from "expo-document-picker";
 import { File } from "expo-file-system";
 import { Platform } from "react-native";
+import { readPrepared } from "../analysis/parse/prepared";
+import {
+  rankingsName,
+  segmentLayer,
+  wardLayer,
+  crashLayer,
+} from "../analysis/prepared";
 import { emptyInputs } from "../analysis/types";
 import { Aliases } from "../analysis/parse/columns";
 import { parseKml } from "../analysis/parse/kml";
@@ -39,7 +46,9 @@ export async function parseFile(
 ): Promise<DatasetFile> {
   const data = emptyInputs();
   let rawSheets;
-  if (/\.(kmz|kml)$/i.test(file.name))
+  if ([rankingsName, segmentLayer, wardLayer, crashLayer].includes(file.name))
+    Object.assign(data, readPrepared(file.bytes, file.name));
+  else if (/\.(kmz|kml)$/i.test(file.name))
     Object.assign(data, await parseKml(file.bytes, file.name, onProgress));
   else if (/\.(xlsx|xls|csv)$/i.test(file.name)) {
     const parsed = parseWorkbook(file.bytes, file.name, aliases, kind);
@@ -48,9 +57,15 @@ export async function parseFile(
     rawSheets = parsed.rawSheets;
   } else
     throw new Error(
-      "Choose a CSV, XLSX, KML or KMZ file. PDF and shapefile assets will be connected when supplied.",
+      "Choose a CSV, XLSX, KML, KMZ or prepared Norman GeoJSON file. PDF and shapefile assets will be connected when supplied.",
     );
   const summary = [
+    data.crashPoints?.length
+      ? `${data.crashPoints.length.toLocaleString()} crash locations · ${Math.min(...data.crashPoints.map((p) => p.year))}–${Math.max(...data.crashPoints.map((p) => p.year))}`
+      : "",
+    data.summaries?.length
+      ? data.summaries.length + " verified segment summaries"
+      : "",
     data.segments.length
       ? `${data.segments.length.toLocaleString()} segments`
       : "",
