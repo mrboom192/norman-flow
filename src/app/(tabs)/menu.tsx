@@ -107,6 +107,17 @@ export default function Menu() {
             <View style={{ marginBottom: 10 }}>
               <OfficialNote />
             </View>
+            <View style={{ gap: 6, marginBottom: 12 }}>
+              <Button
+                icon={Upload}
+                label="Add new data & re-rank"
+                onPress={() => router.push("/import")}
+              />
+              <T muted size={12}>
+                Import results from the Excel tool and preview changes before
+                saving.
+              </T>
+            </View>
             <MenuRow
               icon={FolderOpen}
               title="Data files"
@@ -116,12 +127,6 @@ export default function Menu() {
                   : "No files yet"
               }
               onPress={() => setSheet("files")}
-            />
-            <MenuRow
-              icon={Upload}
-              title="Add new data & re-rank"
-              subtitle="Import the results file from the Excel tool"
-              onPress={() => router.push("/import")}
             />
             <MenuRow
               icon={ShieldCheck}

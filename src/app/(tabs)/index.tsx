@@ -12,7 +12,6 @@ import {
   Stethoscope,
   TrafficCone,
   TriangleAlert,
-  Upload,
 } from "lucide-react-native";
 import { type ReactNode, useMemo, useRef } from "react";
 import { Pressable, ScrollView, View } from "react-native";
@@ -89,13 +88,6 @@ export default function Home() {
             ))}
           </Row>
         ))}
-        <ActionRow
-          icon={Upload}
-          title="Add new data & re-rank"
-          subtitle="Preview changes before anything is saved"
-          primary
-          onPress={() => router.push("/import")}
-        />
         {state.results && (
           <ActionRow
             icon={Stethoscope}
@@ -233,17 +225,15 @@ function ActionRow({
   icon: Icon,
   title,
   subtitle,
-  primary = false,
   onPress,
 }: {
   icon: LucideIcon;
   title: string;
   subtitle: string;
-  primary?: boolean;
   onPress: () => void;
 }) {
   const c = useTheme();
-  const ink = primary ? c.onPrimary : c.ink;
+  const ink = c.ink;
   return (
     <Pressable
       accessibilityRole="button"
@@ -256,7 +246,7 @@ function ActionRow({
         gap: 12,
         paddingHorizontal: 14,
         borderRadius: 20,
-        backgroundColor: primary ? c.primary : c.dataSurface,
+        backgroundColor: c.dataSurface,
         opacity: pressed ? 0.75 : 1,
       })}
     >
@@ -265,7 +255,7 @@ function ActionRow({
         <T size={14} style={{ fontFamily: fonts.bold, color: ink }}>
           {title}
         </T>
-        <T size={12} style={{ color: primary ? c.onPrimary : c.muted }}>
+        <T size={12} style={{ color: c.muted }}>
           {subtitle}
         </T>
       </View>

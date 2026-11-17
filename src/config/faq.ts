@@ -119,7 +119,7 @@ export const faqs: Faq[] = [
     topic: "Using the app",
     keywords: /add|upload|import|new file|replace/i,
     answer:
-      "Run the Norman Flow Excel tool (or the Colab notebook) with the new data, then tap “Add new data & re-rank” on Home or in Menu and choose the norman_flow_rankings.csv it creates (plus new segment, ward or crash-point files if they changed). The app checks the file, shows a preview, and updates every screen when you confirm. You can undo the last run, or restore the official 2026 results, from Menu.",
+      "Run the Norman Flow Excel tool (or the Colab notebook) with the new data, then tap “Add new data & re-rank” in Menu and choose the norman_flow_rankings.csv it creates (plus new segment, ward or crash-point files if they changed). The app checks the file, shows a preview, and updates every screen when you confirm. You can undo the last run, or restore the official 2026 results, from Menu.",
   },
   {
     question: "How do I update the data next year?",

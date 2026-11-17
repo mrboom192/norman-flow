@@ -22,8 +22,8 @@ const tourSteps: {
   {
     route: "/",
     target: "home-data",
-    title: "Keep your analysis up to date",
-    body: "See what data is loaded and when it was last ranked. Add new files, preview the changes, then confirm to re-rank.",
+    title: "Explore your analysis data",
+    body: "See what data is loaded and when it was last ranked. Tap a data tile for details, or review the analysis diagnostics.",
   },
   {
     route: "/ranks",
@@ -47,7 +47,7 @@ const tourSteps: {
     route: "/menu",
     target: "menu-data",
     title: "Files and settings",
-    body: "Manage data files and analysis settings, switch to dark mode or another app color, and replay this tour anytime.",
+    body: "Use Add new data & re-rank to import results, preview changes, then confirm. Manage files and analysis settings, change the appearance, or replay this tour anytime.",
   },
 ];
 
