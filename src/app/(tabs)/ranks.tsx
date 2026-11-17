@@ -4,7 +4,6 @@ import {
   Check,
   ChevronDown,
   Download,
-  ListOrdered,
   type LucideIcon,
 } from "lucide-react-native";
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -192,6 +191,51 @@ export default function Rankings() {
         <DatasetBanner style={{ paddingHorizontal: 20 }} />
 
         <View {...wardsTarget} style={{ gap: 16 }}>
+          <View
+            accessibilityRole="tablist"
+            accessibilityLabel="Ranking type"
+            style={{
+              flexDirection: "row",
+              marginHorizontal: 20,
+              padding: 4,
+              borderRadius: 24,
+              backgroundColor: c.dataSurface,
+            }}
+          >
+            {kinds.map((item) => (
+              <Pressable
+                key={item.key}
+                accessibilityRole="tab"
+                accessibilityState={{ selected: kind === item.key }}
+                onPress={() => {
+                  if (kind === item.key) return;
+                  clearFocus();
+                  setKind(item.key);
+                  setSort("Final rank");
+                  setLimit(20);
+                }}
+                style={{
+                  flex: 1,
+                  minHeight: 44,
+                  borderRadius: 22,
+                  alignItems: "center",
+                  justifyContent: "center",
+                  backgroundColor:
+                    kind === item.key ? c.primary : c.dataSurface,
+                }}
+              >
+                <T
+                  size={14}
+                  style={{
+                    fontFamily: fonts.bold,
+                    color: kind === item.key ? c.onPrimary : c.ink,
+                  }}
+                >
+                  {item.label}
+                </T>
+              </Pressable>
+            ))}
+          </View>
           <ScrollView
             horizontal
             showsHorizontalScrollIndicator={false}
@@ -233,7 +277,7 @@ export default function Rankings() {
                       color: active ? c.onPrimary : c.muted,
                     }}
                   >
-                    {value === "all" ? "All" : `Ward ${value}`}
+                    {value === "all" ? "Citywide" : `Ward ${value}`}
                   </T>
                 </Pressable>
               );
@@ -242,12 +286,6 @@ export default function Rankings() {
 
           <View style={{ paddingHorizontal: 20, gap: 12 }}>
             <Row style={{ gap: 10 }}>
-              <Dropdown
-                icon={ListOrdered}
-                label={kindInfo.label}
-                accessibilityLabel={`Ranking type: ${kindInfo.label}`}
-                onPress={() => setSheet("kind")}
-              />
               <Dropdown
                 icon={ArrowUpDown}
                 label={sort}
@@ -383,35 +421,11 @@ export default function Rankings() {
       </Screen>
 
       <Sheet
-        title={
-          sheet === "kind"
-            ? "Ranking type"
-            : sheet === "sort"
-              ? "Sort rankings"
-              : "Export rankings"
-        }
+        title={sheet === "sort" ? "Sort rankings" : "Export rankings"}
         visible={!!sheet}
         onClose={() => setSheet("")}
       >
-        {sheet === "kind" ? (
-          <View>
-            {kinds.map((k, i) => (
-              <OptionRow
-                key={k.key}
-                label={k.label}
-                description={k.description}
-                selected={kind === k.key}
-                divider={i > 0}
-                onPress={() => {
-                  clearFocus();
-                  setKind(k.key);
-                  setLimit(20);
-                  setSheet("");
-                }}
-              />
-            ))}
-          </View>
-        ) : sheet === "sort" ? (
+        {sheet === "sort" ? (
           <View>
             {sorts.map((s, i) => (
               <OptionRow
