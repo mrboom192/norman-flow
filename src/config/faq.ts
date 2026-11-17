@@ -150,6 +150,13 @@ export const faqs: Faq[] = [
       "The City asked for segments of about one mile so each one has its own traffic count, crash count and ward. Each road is cut only at real intersections with major roads, and where the number of lanes changes, choosing the cuts closest to one mile; most segments are 0.97–1.03 miles. Collision rankings use raw counts, not counts per mile.",
   },
   {
+    question: "Where are the tool tutorial videos?",
+    topic: "Using the app",
+    keywords: /video|tutorial|power ?bi|google sheets|watch/i,
+    answer:
+      "Open Menu → Reusable tools videos (or Watch the tool tutorials on the import screen). There are videos for the Norman Flow Excel tool and the Google Colab notebook, with Power BI and Google Sheets versions in development. Videos that aren’t published yet show “Video coming soon”.",
+  },
+  {
     question: "Does the app recommend projects?",
     topic: "Using the app",
     keywords: /recommend|fix|cost|project|should we|budget/i,

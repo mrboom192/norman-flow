@@ -2,6 +2,7 @@ import { router } from "expo-router";
 import {
   ChevronRight,
   CirclePlay,
+  Clapperboard,
   ExternalLink,
   FolderOpen,
   Gauge,
@@ -221,7 +222,13 @@ export default function Menu() {
         </Section>
 
         <Section title="Help">
-          <View style={{ gap: 10, paddingTop: 4 }}>
+          <MenuRow
+            icon={Clapperboard}
+            title="Reusable tools videos"
+            subtitle="Excel, Colab, Power BI and Google Sheets tutorials"
+            onPress={() => router.push("/videos")}
+          />
+          <View style={{ gap: 10, paddingTop: 12 }}>
             <Button
               icon={CirclePlay}
               label="Replay tutorial"

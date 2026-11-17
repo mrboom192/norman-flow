@@ -3,6 +3,7 @@ import { View, ActivityIndicator, StyleSheet } from "react-native";
 import { router } from "expo-router";
 import {
   Check,
+  Clapperboard,
   FlaskConical,
   RotateCcw,
   ShieldCheck,
@@ -460,6 +461,12 @@ export default function Import() {
                 ? "1. Select raw traffic, crash or road files.\n2. Check the preview and column matches.\n3. Confirm to recalculate all eight ward lists in the app."
                 : "1. Run the Norman Flow Excel tool (or the Colab notebook) with the new data.\n2. Select the norman_flow_rankings.csv it creates, plus any new map files.\n3. Check the preview, then confirm to update every screen."}
             </T>
+            <Button
+              outline
+              icon={Clapperboard}
+              label="Watch the tool tutorials"
+              onPress={() => router.push("/videos")}
+            />
             <Button
               outline
               icon={RotateCcw}
