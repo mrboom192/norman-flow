@@ -22,7 +22,9 @@ export default function Welcome() {
   }
   function completeWelcome(tour: boolean) {
     set({ welcomeSeen: true, tour: tour ? 0 : null });
-    router.replace("/");
+    // Return to the existing Home (replay from Home or Menu) instead of stacking
+    // a second tabs navigator, which would mount Home and its tour twice.
+    router.dismissTo("/");
   }
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: c.background }}>
@@ -62,7 +64,7 @@ export default function Welcome() {
         </Card>
         <View style={{ gap: 12 }}>
           {[
-            "Pick a ward to see its ranked segments",
+            "Pick a ward on Rankings to see its segments",
             "Tap a segment for its V/C and collision details",
             "Upload new counts to re-run the rankings",
           ].map((step, i) => (

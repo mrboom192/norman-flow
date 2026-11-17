@@ -1,38 +1,51 @@
 import { visibleCrashPoints } from "../analysis/crashMap";
+import type { SegmentResult } from "../analysis/types";
 import { fileDisplayName } from "../services/displayNames";
 import { router, useFocusEffect, useLocalSearchParams } from "expo-router";
 import {
   ArrowLeft,
-  Map as MapIcon,
-  Satellite,
+  ChevronRight,
   Flame,
   Layers,
+  type LucideIcon,
+  Map as MapIcon,
+  MapPin,
   Minus,
   Plus,
   RotateCcw,
+  Satellite,
   SlidersHorizontal,
+  TriangleAlert,
+  Upload,
+  X,
 } from "lucide-react-native";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { BackHandler, Pressable, StyleSheet, Switch, View } from "react-native";
+import {
+  BackHandler,
+  Pressable,
+  StyleSheet,
+  View,
+  type ViewStyle,
+} from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { Sheet } from "../components/Sheet";
+import { HeatLegend } from "../components/HeatLegend";
 import { RoadMap } from "../components/RoadMap";
 import { SegmentLengthLegend } from "../components/SegmentLengthLegend";
-import { HeatLegend } from "../components/HeatLegend";
+import { Sheet } from "../components/Sheet";
 import {
   Button,
-  Chip,
   Empty,
-  IconButton,
+  FileBadge,
   Input,
   Row,
-  StatTile,
   T,
+  Toggle,
   WardPicker,
 } from "../components/ui";
 import { useFlow, visibleGeometry } from "../store/useFlow";
-import { fonts, format, useTheme } from "../theme";
-const mapModes = [
+import { fonts, format, segmentLengthColor, useTheme } from "../theme";
+
+const mapModes: { label: string; icon: LucideIcon }[] = [
   { label: "Map", icon: MapIcon },
   { label: "Satellite", icon: Satellite },
   { label: "Heat", icon: Flame },
@@ -156,8 +169,38 @@ export default function SearchScreen() {
     () => visibleCrashPoints(state.files, crashSegmentIds).length,
     [state.files, crashSegmentIds],
   );
+  const filters = [
+    {
+      label: "Selected ward",
+      chip: `Ward ${state.ward}`,
+      value: wardFilter,
+      set: setWardFilter,
+    },
+    { label: "4+ lanes", chip: "4+ lanes", value: lanes, set: setLanes },
+    {
+      label: "Has collisions",
+      chip: "Has collisions",
+      value: crashes,
+      set: setCrashes,
+    },
+    {
+      label: "Has traffic count",
+      chip: "Has traffic count",
+      value: counts,
+      set: setCounts,
+    },
+  ];
+  const activeFilters = filters.filter((f) => f.value);
+  const float: ViewStyle = { boxShadow: c.floatShadow };
+  const gutter = {
+    left: Math.max(16, insets.left),
+    right: Math.max(16, insets.right),
+  };
+  const wardLabel = (s: SegmentResult) =>
+    `Ward ${s.wardMajority || s.wards.join(", ") || "—"}`;
+
   return (
-    <View style={{ flex: 1, backgroundColor: c.background }}>
+    <View style={{ flex: 1, backgroundColor: c.mapBackground }}>
       <View style={StyleSheet.absoluteFill}>
         <RoadMap
           segments={matching}
@@ -165,216 +208,325 @@ export default function SearchScreen() {
           mode={mode}
           metric={metric}
           crashSegmentIds={crashSegmentIds}
+          onZoomTo={setZoom}
           onSelectSegment={(id) => {
             state.set({ selected: id });
             setSheet("roads");
           }}
         />
+      </View>
+
+      {/* Top: search, mode switch, active filters and map controls */}
+      <View
+        pointerEvents="box-none"
+        style={{
+          position: "absolute",
+          top: insets.top + 12,
+          ...gutter,
+          gap: 10,
+        }}
+      >
+        <Row style={{ gap: 10 }}>
+          <RoundButton
+            icon={ArrowLeft}
+            label="Back from map"
+            onPress={() => {
+              if (router.canGoBack()) router.back();
+              else router.replace("/");
+            }}
+          />
+          <Input
+            search
+            value={query}
+            onChangeText={setQuery}
+            placeholder="Find a street or ward"
+            style={{ flex: 1, borderWidth: 0, ...float }}
+          />
+          <RoundButton
+            icon={SlidersHorizontal}
+            label="Map filters"
+            badge={activeFilters.length}
+            onPress={() => setSheet("filters")}
+          />
+        </Row>
         <View
           style={{
-            position: "absolute",
-            left: Math.max(16, insets.left),
-            right: Math.max(16, insets.right),
-            top: insets.top + 16,
-            gap: 10,
+            flexDirection: "row",
+            padding: 4,
+            borderRadius: 999,
+            backgroundColor: c.surface,
+            ...float,
           }}
-          pointerEvents="box-none"
         >
-          <Row>
-            <IconButton
-              icon={ArrowLeft}
-              label="Back from map"
-              onPress={() => {
-                if (router.canGoBack()) router.back();
-                else router.replace("/");
-              }}
-            />
-            <Input
-              search
-              value={query}
-              onChangeText={setQuery}
-              placeholder="Find a street or ward"
-              style={{ flex: 1 }}
-            />
-            <IconButton
-              icon={SlidersHorizontal}
-              label="Map filters"
-              onPress={() => setSheet("filters")}
-            />
-          </Row>
-          <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 6 }}>
-            {wardFilter && (
-              <Chip
-                label={`Ward ${state.ward} ×`}
-                onPress={() => setWardFilter(false)}
-              />
-            )}
-            {lanes && (
-              <Chip label="4+ lanes ×" onPress={() => setLanes(false)} />
-            )}
-            {crashes && (
-              <Chip
-                label="Has collisions ×"
-                onPress={() => setCrashes(false)}
-              />
-            )}
-            {counts && (
-              <Chip
-                label="Has traffic count ×"
-                onPress={() => setCounts(false)}
-              />
-            )}
-          </View>
-          <View
-            pointerEvents="box-none"
-            style={{
-              flexDirection: "row",
-              justifyContent: "space-between",
-              alignItems: "flex-start",
-            }}
-          >
-            <View
-              style={{
-                flexDirection: "row",
-                padding: 4,
-                borderRadius: 14,
-                backgroundColor: c.surface,
-                borderWidth: 1,
-                borderColor: c.border,
-              }}
-            >
-              {mapModes.map(({ label: m, icon: Icon }) => (
-                <Pressable
-                  key={m}
-                  onPress={() => {
-                    setMode(m);
-                    if (m === "Heat" && metric === "collisions")
-                      state.set({ crashHeatmapVisible: true });
-                  }}
-                  accessibilityRole="button"
-                  accessibilityLabel={m}
-                  accessibilityState={{ selected: m === mode }}
+          {mapModes.map(({ label, icon: Icon }) => {
+            const active = label === mode;
+            return (
+              <Pressable
+                key={label}
+                onPress={() => setMode(label)}
+                accessibilityRole="button"
+                accessibilityLabel={`${label} view`}
+                accessibilityState={{ selected: active }}
+                style={{
+                  flex: 1,
+                  minHeight: 44,
+                  flexDirection: "row",
+                  gap: 6,
+                  alignItems: "center",
+                  justifyContent: "center",
+                  borderRadius: 999,
+                  backgroundColor: active ? c.primary : "transparent",
+                }}
+              >
+                <Icon size={17} color={active ? c.onPrimary : c.muted} />
+                <T
+                  size={13}
                   style={{
-                    minHeight: 44,
-                    width: 44,
-                    alignItems: "center",
-                    justifyContent: "center",
-                    borderRadius: 10,
-                    backgroundColor: m === mode ? c.primary : "transparent",
+                    fontFamily: fonts.bold,
+                    color: active ? c.onPrimary : c.muted,
                   }}
                 >
-                  <Icon size={21} color={m === mode ? c.onPrimary : c.muted} />
-                </Pressable>
-              ))}
-            </View>
-            <View style={{ gap: 8 }}>
-              <IconButton
-                icon={Layers}
-                label="Files on this map"
-                onPress={() => setSheet("layers")}
-                style={{ borderRadius: 14 }}
-              />
-              <IconButton
-                icon={RotateCcw}
-                label="Reset map"
-                onPress={() => {
-                  setZoom(1);
-                  setQuery("");
-                  state.set({ selected: null, mapReset: state.mapReset + 1 });
-                }}
-                style={{ borderRadius: 14 }}
-              />
-              <IconButton
-                icon={Plus}
-                label="Zoom in"
-                onPress={() => setZoom(Math.min(zoom * 1.4, 1024))}
-                style={{ borderRadius: 14 }}
-              />
-              <IconButton
-                icon={Minus}
-                label="Zoom out"
-                onPress={() => setZoom(Math.max(zoom / 1.4, 0.5))}
-                style={{ borderRadius: 14 }}
-              />
-            </View>
-          </View>
+                  {label}
+                </T>
+              </Pressable>
+            );
+          })}
         </View>
+        <Row style={{ alignItems: "flex-start" }}>
+          <View
+            pointerEvents="box-none"
+            style={{ flex: 1, flexDirection: "row", flexWrap: "wrap", gap: 6 }}
+          >
+            {activeFilters.map((f) => (
+              <FilterPill
+                key={f.label}
+                label={f.chip}
+                onRemove={() => f.set(false)}
+              />
+            ))}
+          </View>
+          <View
+            style={{
+              width: 48,
+              borderRadius: 24,
+              backgroundColor: c.surface,
+              overflow: "hidden",
+              ...float,
+            }}
+          >
+            <StackButton
+              icon={Layers}
+              label="Files on this map"
+              onPress={() => setSheet("layers")}
+            />
+            <StackButton
+              icon={RotateCcw}
+              label="Reset map"
+              onPress={() => {
+                setZoom(1);
+                setQuery("");
+                state.set({ selected: null, mapReset: state.mapReset + 1 });
+              }}
+            />
+            <View
+              style={{
+                height: 1,
+                marginHorizontal: 10,
+                backgroundColor: c.divider,
+              }}
+            />
+            <StackButton
+              icon={Plus}
+              label="Zoom in"
+              onPress={() => setZoom(Math.min(zoom * 1.4, 1024))}
+            />
+            <StackButton
+              icon={Minus}
+              label="Zoom out"
+              onPress={() => setZoom(Math.max(zoom / 1.4, 0.5))}
+            />
+          </View>
+        </Row>
       </View>
+
+      {/* Bottom: legend or heat controls, then the selected road */}
       <View
         style={{
           position: "absolute",
-          bottom: insets.bottom + 20,
-          left: Math.max(20, insets.left),
-          right: Math.max(20, insets.right),
+          bottom: insets.bottom + 16,
+          ...gutter,
+          backgroundColor: c.surface,
+          borderRadius: 24,
+          padding: 16,
           gap: 12,
+          ...float,
         }}
       >
-        {mode !== "Heat" && !state.crashHeatmapVisible && (
-          <View
-            style={{
-              padding: 10,
-              borderRadius: 12,
-              backgroundColor: c.surface,
-            }}
-          >
-            <SegmentLengthLegend />
-          </View>
-        )}
-        {(mode === "Heat" || state.crashHeatmapVisible) && (
-          <View
-            style={{
-              padding: 10,
-              borderRadius: 12,
-              backgroundColor: c.surface,
-            }}
-          >
-            <Row>
-              <Chip
-                label="V/C"
-                active={metric === "vc"}
-                onPress={() => {
-                  setMetric("vc");
-                  state.set({ crashHeatmapVisible: false });
+        {mode === "Heat" ? (
+          <View style={{ gap: 10 }}>
+            <View
+              style={{
+                flexDirection: "row",
+                padding: 3,
+                borderRadius: 999,
+                backgroundColor: c.dataSurface,
+              }}
+            >
+              {(
+                [
+                  ["vc", "V/C"],
+                  ["collisions", "Crash density"],
+                ] as const
+              ).map(([value, label]) => {
+                const active = metric === value;
+                return (
+                  <Pressable
+                    key={value}
+                    onPress={() => setMetric(value)}
+                    accessibilityRole="button"
+                    accessibilityLabel={label}
+                    accessibilityState={{ selected: active }}
+                    style={{
+                      flex: 1,
+                      minHeight: 44,
+                      alignItems: "center",
+                      justifyContent: "center",
+                      borderRadius: 999,
+                      backgroundColor: active ? c.surface : "transparent",
+                      boxShadow: active
+                        ? "0px 1px 4px rgba(0, 0, 0, 0.12)"
+                        : undefined,
+                    }}
+                  >
+                    <T
+                      size={13}
+                      style={{
+                        fontFamily: fonts.bold,
+                        color: active ? c.ink : c.muted,
+                      }}
+                    >
+                      {label}
+                    </T>
+                  </Pressable>
+                );
+              })}
+            </View>
+            <Row style={{ minHeight: 44, gap: 10 }}>
+              <View
+                style={{
+                  width: 32,
+                  height: 32,
+                  borderRadius: 10,
+                  alignItems: "center",
+                  justifyContent: "center",
+                  backgroundColor: state.crashPointsVisible
+                    ? c.crashMarker
+                    : c.dataSurface,
                 }}
-              />
-              <Chip
-                label="Crash density"
-                active={metric === "collisions"}
-                onPress={() => {
-                  setMetric("collisions");
-                  state.set({ crashHeatmapVisible: true });
-                }}
+              >
+                <MapPin
+                  size={16}
+                  color={state.crashPointsVisible ? c.white : c.muted}
+                />
+              </View>
+              <View style={{ flex: 1 }}>
+                <T size={13} style={{ fontFamily: fonts.bold }}>
+                  Crash locations
+                </T>
+                <T muted size={11}>
+                  Dots and count badges · zoom in to separate
+                </T>
+              </View>
+              <Toggle
+                accessibilityLabel="Show crash locations"
+                value={state.crashPointsVisible}
+                onValueChange={(crashPointsVisible) =>
+                  state.set({ crashPointsVisible })
+                }
               />
             </Row>
             <HeatLegend
               segments={matching}
-              metric={state.crashHeatmapVisible ? "collisions" : metric}
+              metric={metric}
               crashCount={crashCount}
             />
           </View>
-        )}
-        {!matching.length && (
-          <View
-            style={{
-              backgroundColor: c.surface,
-              padding: 14,
-              borderRadius: 14,
-            }}
-          >
-            <T muted size={12}>
-              {state.results?.segments.length
-                ? "No visible roads match. Clear your search or filters, or check the map layers."
-                : "Import road segments to display your analysis."}
+        ) : (
+          <View style={{ gap: 6 }}>
+            <T heading size={15}>
+              {matching.length
+                ? `${matching.length.toLocaleString()} road segments`
+                : "Road segments"}
             </T>
+            <View
+              style={{
+                flexDirection: "row",
+                flexWrap: "wrap",
+                alignItems: "center",
+                gap: 12,
+              }}
+            >
+              <SegmentLengthLegend />
+              <WardSwatches />
+            </View>
           </View>
         )}
-        <Button
-          label={
-            selected ? `View ${selected.road} details` : "Explore road segments"
-          }
-          onPress={() => setSheet("roads")}
-        />
+        {!matching.length && (
+          <T muted size={12}>
+            {state.results?.segments.length
+              ? "No visible roads match. Clear your search or filters, or check the map layers."
+              : "Import road segments to display your analysis."}
+          </T>
+        )}
+        {selected ? (
+          <Pressable
+            onPress={() => setSheet("roads")}
+            accessibilityRole="button"
+            accessibilityLabel={`View ${selected.road} details`}
+            style={({ pressed }) => ({
+              flexDirection: "row",
+              alignItems: "center",
+              gap: 12,
+              padding: 12,
+              borderRadius: 18,
+              backgroundColor: c.dataSurface,
+              opacity: pressed ? 0.75 : 1,
+            })}
+          >
+            <View
+              style={{
+                width: 6,
+                alignSelf: "stretch",
+                borderRadius: 3,
+                backgroundColor: c.primary,
+              }}
+            />
+            <View style={{ flex: 1 }}>
+              <T heading size={16} numberOfLines={1}>
+                {selected.road}
+              </T>
+              <T muted size={11}>
+                {[
+                  `Segment ${selected.index} of ${selected.of}`,
+                  wardLabel(selected),
+                  selected.vc != null && `V/C ${format(selected.vc, 2)}`,
+                  selected.collisions != null &&
+                    `${format(selected.collisions)} crashes`,
+                ]
+                  .filter(Boolean)
+                  .join(" · ")}
+              </T>
+            </View>
+            <ChevronRight size={20} color={c.muted} />
+          </Pressable>
+        ) : (
+          <Button
+            label="Explore road segments"
+            onPress={() => setSheet("roads")}
+          />
+        )}
       </View>
+
       <Sheet
         visible={sheetOpen}
         snapPoints={snapPoints}
@@ -384,7 +536,7 @@ export default function SearchScreen() {
             : sheet === "layers"
               ? "Files on this map"
               : selected
-                ? "Segment details"
+                ? selected.road
                 : "Road segments"
         }
         onClose={() => setSheet("")}
@@ -395,261 +547,502 @@ export default function SearchScreen() {
         }}
       >
         {sheet === "roads" ? (
-          <>
-            {selected ? (
-              <>
-                <Row>
-                  <View style={{ flex: 1 }}>
-                    <T heading size={23}>
-                      {selected.road}
-                    </T>
-                    <T muted size={12}>
-                      Segment {selected.index} of {selected.of} · Ward{" "}
-                      {selected.wardMajority ||
-                        selected.wards.join(", ") ||
-                        "—"}
-                    </T>
-                  </View>
-                </Row>
-                <Button
-                  label="See its rank"
-                  onPress={() => {
-                    if (selected.wards.length)
-                      state.set({ ward: selected.wards[0] });
-                    navigateAfterClose(() => router.dismissTo("/ranks"));
-                  }}
+          selected ? (
+            <>
+              <Row>
+                <T muted size={13} style={{ flex: 1 }}>
+                  Segment {selected.index} of {selected.of} ·{" "}
+                  {wardLabel(selected)}
+                </T>
+                <Pressable
+                  onPress={() => state.set({ selected: null })}
+                  accessibilityRole="button"
+                  accessibilityLabel="Back to all road segments"
+                  style={{ minHeight: 44, justifyContent: "center" }}
+                >
+                  <T
+                    size={13}
+                    style={{ fontFamily: fonts.bold, color: c.primaryText }}
+                  >
+                    All roads
+                  </T>
+                </Pressable>
+              </Row>
+              <Row style={{ gap: 10, alignItems: "stretch" }}>
+                <Metric value={format(selected.vc, 2)} label="V/C ratio" />
+                <Metric
+                  value={format(selected.maxVolume)}
+                  label="Max traffic"
                 />
-                <Row>
-                  <StatTile value={format(selected.vc, 2)} label="V/C ratio" />
-                  <StatTile
-                    value={format(selected.maxVolume)}
-                    label="Max traffic count"
-                  />
-                  <StatTile
-                    value={format(selected.collisions)}
-                    label="Collisions"
-                  />
-                </Row>
+                <Metric
+                  value={format(selected.collisions)}
+                  label="Collisions"
+                />
+              </Row>
+              {selected.laneCoverage != null && selected.laneCoverage < 100 && (
                 <View
                   style={{
                     flexDirection: "row",
-                    flexWrap: "wrap",
-                    gap: 12,
+                    gap: 10,
+                    alignItems: "center",
+                    backgroundColor: c.chipTint,
+                    padding: 12,
+                    borderRadius: 16,
                   }}
                 >
-                  {[
-                    ...(selected.preparedStatus
-                      ? [
-                          [
-                            "Status",
-                            !selected.rankable ||
-                            selected.maxVolume === undefined ||
-                            selected.summarySource
-                              ? selected.preparedStatus
-                              : "Traffic available",
-                          ],
-                          ...(selected.laneSource
-                            ? [["Lane source", selected.laneSource]]
-                            : []),
-                        ]
-                      : []),
-                    ["Segment length", `${selected.lengthMi.toFixed(2)} mi`],
-                    [
-                      "Total street length",
-                      `${selected.roadTotalMi.toFixed(2)} mi`,
-                    ],
-                    [
-                      selected.preparedStatus ? "Lanes" : "Lanes (GIS)",
-                      `${format(selected.lanes)} · ${selected.travelDirection || "—"}`,
-                    ],
-                    [
-                      "Wards touched",
-                      selected.wards
-                        .map(
-                          (w) =>
-                            `${w}${w === selected.wardMajority ? " (majority)" : ""}`,
-                        )
-                        .join(", ") || "—",
-                    ],
-                    ["Start", selected.start.join(", ")],
-                    ["End", selected.end.join(", ")],
-                  ].map(([label, value]) => (
-                    <View key={label} style={{ width: "47%" }}>
-                      <T muted size={11}>
-                        {label}
-                      </T>
-                      <T size={12} style={{ fontFamily: fonts.bold }}>
-                        {value}
-                      </T>
-                    </View>
-                  ))}
+                  <TriangleAlert size={18} color={c.primaryDeep} />
+                  <T size={12} style={{ flex: 1, color: c.primaryDeep }}>
+                    Lane count only mapped for {selected.laneCoverage}% of this
+                    segment — check the aerial view.
+                  </T>
                 </View>
-                {selected.laneCoverage != null &&
-                  selected.laneCoverage < 100 && (
-                    <View
+              )}
+              <View
+                style={{
+                  backgroundColor: c.dataSurface,
+                  borderRadius: 22,
+                  paddingHorizontal: 16,
+                }}
+              >
+                {[
+                  ...(selected.preparedStatus
+                    ? [
+                        [
+                          "Status",
+                          !selected.rankable ||
+                          selected.maxVolume === undefined ||
+                          selected.summarySource
+                            ? selected.preparedStatus
+                            : "Traffic available",
+                        ],
+                        ...(selected.laneSource
+                          ? [["Lane source", selected.laneSource]]
+                          : []),
+                      ]
+                    : []),
+                  ["Segment length", `${selected.lengthMi.toFixed(2)} mi`],
+                  [
+                    "Total street length",
+                    `${selected.roadTotalMi.toFixed(2)} mi`,
+                  ],
+                  [
+                    selected.preparedStatus ? "Lanes" : "Lanes (GIS)",
+                    `${format(selected.lanes)} · ${selected.travelDirection || "—"}`,
+                  ],
+                  [
+                    "Wards touched",
+                    selected.wards
+                      .map(
+                        (w) =>
+                          `${w}${w === selected.wardMajority ? " (majority)" : ""}`,
+                      )
+                      .join(", ") || "—",
+                  ],
+                  ["Start", selected.start.join(", ")],
+                  ["End", selected.end.join(", ")],
+                ].map(([label, value], i) => (
+                  <Row
+                    key={label}
+                    style={{
+                      minHeight: 46,
+                      gap: 16,
+                      borderTopWidth: i ? 1 : 0,
+                      borderColor: c.divider,
+                    }}
+                  >
+                    <T muted size={13}>
+                      {label}
+                    </T>
+                    <T
+                      size={13}
                       style={{
-                        backgroundColor: c.chipTint,
-                        padding: 10,
-                        borderRadius: 12,
+                        fontFamily: fonts.bold,
+                        flexShrink: 1,
+                        textAlign: "right",
                       }}
                     >
-                      <T size={12} style={{ color: c.primaryDeep }}>
-                        Lane count only mapped for {selected.laneCoverage}% of
-                        this segment — check the aerial view.
+                      {value}
+                    </T>
+                  </Row>
+                ))}
+              </View>
+              <Button
+                label="See its rank"
+                onPress={() => {
+                  if (selected.wards.length)
+                    state.set({ ward: selected.wards[0] });
+                  navigateAfterClose(() => router.dismissTo("/ranks"));
+                }}
+              />
+            </>
+          ) : matching.length ? (
+            <>
+              <T muted size={13}>
+                {matching.length.toLocaleString()} segments · tap one to inspect
+                it
+              </T>
+              <View>
+                {matching.slice(0, 20).map((s, i) => (
+                  <Pressable
+                    key={s.id}
+                    onPress={() => state.set({ selected: s.id })}
+                    accessibilityRole="button"
+                    accessibilityLabel={`${s.road}, segment ${s.index} of ${s.of}`}
+                    style={({ pressed }) => ({
+                      minHeight: 60,
+                      flexDirection: "row",
+                      alignItems: "center",
+                      gap: 12,
+                      borderTopWidth: i ? 1 : 0,
+                      borderColor: c.divider,
+                      opacity: pressed ? 0.6 : 1,
+                    })}
+                  >
+                    <View
+                      style={{
+                        width: 6,
+                        height: 32,
+                        borderRadius: 3,
+                        backgroundColor: segmentLengthColor(s.lengthMi),
+                      }}
+                    />
+                    <View style={{ flex: 1 }}>
+                      <T
+                        size={14}
+                        style={{ fontFamily: fonts.bold }}
+                        numberOfLines={1}
+                      >
+                        {s.road}
+                      </T>
+                      <T muted size={12}>
+                        Segment {s.index} of {s.of} · {wardLabel(s)} ·{" "}
+                        {s.lengthMi.toFixed(2)} mi
                       </T>
                     </View>
-                  )}
-              </>
-            ) : matching.length ? (
-              <>
-                <T heading size={20}>
-                  {matching.length} road segments
-                </T>
-                <T muted size={12}>
-                  Tap a line or select a road to inspect its details.
-                </T>
-                {matching.slice(0, 20).map((s) => (
-                  <Button
-                    key={s.id}
-                    outline
-                    label={`${s.road} · ${s.index} of ${s.of}`}
-                    onPress={() => state.set({ selected: s.id })}
-                  />
+                    <ChevronRight size={18} color={c.muted} />
+                  </Pressable>
                 ))}
-              </>
-            ) : (
-              <Empty
-                title={
-                  state.results
-                    ? "No matching roads"
-                    : "Explore your road network"
-                }
-                body={
-                  state.results
-                    ? "Try clearing your search or filters."
-                    : "Add a KML or KMZ file to put Norman’s segments and wards on the map."
-                }
-                action={() => navigateAfterClose(() => router.push("/import"))}
-              />
-            )}
-          </>
+              </View>
+              {matching.length > 20 && (
+                <T muted size={12} style={{ textAlign: "center" }}>
+                  Showing 20 of {matching.length.toLocaleString()}. Search to
+                  narrow the list.
+                </T>
+              )}
+            </>
+          ) : (
+            <Empty
+              title={
+                state.results
+                  ? "No matching roads"
+                  : "Explore your road network"
+              }
+              body={
+                state.results
+                  ? "Try clearing your search or filters."
+                  : "Add a KML or KMZ file to put Norman’s segments and wards on the map."
+              }
+              action={() => navigateAfterClose(() => router.push("/import"))}
+            />
+          )
         ) : sheet === "filters" ? (
           <>
+            <SectionLabel>Ward</SectionLabel>
             <WardPicker />
-            {[
-              ["Selected ward", wardFilter, setWardFilter],
-              ["4+ lanes", lanes, setLanes],
-              ["Has collisions", crashes, setCrashes],
-              ["Has traffic count", counts, setCounts],
-            ].map(([label, value, setter]) => (
-              <Row key={String(label)}>
-                <T>{String(label)}</T>
-                <Switch
-                  accessibilityLabel={String(label)}
-                  value={Boolean(value)}
-                  onValueChange={setter as (v: boolean) => void}
-                  trackColor={{ true: c.primary }}
-                />
-              </Row>
-            ))}
-            <Button label="Apply filters" onPress={() => setSheet("")} />
+            <SectionLabel>Show only</SectionLabel>
+            <View
+              style={{
+                backgroundColor: c.dataSurface,
+                borderRadius: 22,
+                paddingHorizontal: 16,
+              }}
+            >
+              {filters.map((f, i) => (
+                <Row
+                  key={f.label}
+                  style={{
+                    minHeight: 54,
+                    borderTopWidth: i ? 1 : 0,
+                    borderColor: c.divider,
+                  }}
+                >
+                  <T size={14}>
+                    {f.label === "Selected ward"
+                      ? `Ward ${state.ward} only`
+                      : f.label}
+                  </T>
+                  <Toggle
+                    accessibilityLabel={f.label}
+                    value={f.value}
+                    onValueChange={f.set}
+                  />
+                </Row>
+              ))}
+            </View>
+            <Row style={{ gap: 10 }}>
+              <Button
+                outline
+                label="Clear all"
+                disabled={!activeFilters.length}
+                onPress={() => filters.forEach((f) => f.set(false))}
+                style={{ flex: 1 }}
+              />
+              <Button
+                label="Show results"
+                onPress={() => setSheet("")}
+                style={{ flex: 1 }}
+              />
+            </Row>
           </>
         ) : (
           <>
-            <Button
-              outline
-              label="Upload CSV, XLSX, KML, KMZ or GeoJSON"
-              onPress={() => {
-                navigateAfterClose(() => router.push("/import"));
-              }}
-            />
-            <T heading size={18}>
-              Crash layers
-            </T>
-            <T muted size={12}>
-              Zoom in to separate nearby crash locations. The heatmap blends
-              crashes into stronger hotspots within about 200 metres.
-            </T>
-            {[
-              [
-                "Crash locations",
-                "Count badges for groups · dots for individual crashes",
-                "crashPointsVisible",
-              ],
-              [
-                "Crash heatmap",
-                "Blurred density · nearby crashes add together",
-                "crashHeatmapVisible",
-              ],
-            ].map(([label, description, key]) => (
-              <Row key={key} style={{ minHeight: 56 }}>
-                <View style={{ flex: 1, gap: 4 }}>
-                  <T size={13}>{label}</T>
-                  <T muted size={11}>
-                    {description}
-                  </T>
-                </View>
-                <Switch
-                  accessibilityLabel={`Show ${label} layer`}
-                  value={
-                    key === "crashPointsVisible"
-                      ? state.crashPointsVisible
-                      : state.crashHeatmapVisible
-                  }
-                  onValueChange={(value) => {
-                    state.set(
-                      key === "crashPointsVisible"
-                        ? { crashPointsVisible: value }
-                        : { crashHeatmapVisible: value },
-                    );
-                    if (
-                      key === "crashHeatmapVisible" &&
-                      !value &&
-                      mode === "Heat" &&
-                      metric === "collisions"
-                    )
-                      setMode("Map");
-                  }}
-                  trackColor={{ true: c.primary }}
-                />
-              </Row>
-            ))}
-            <T muted size={12}>
-              {crashCount.toLocaleString()} crash locations available with the
-              current filters. Both layers use the same source file below.
-            </T>
-            <T heading size={18}>
-              Source files
-            </T>
+            <Pressable
+              onPress={() => navigateAfterClose(() => router.push("/import"))}
+              accessibilityRole="button"
+              accessibilityLabel="Upload CSV, XLSX, KML, KMZ or GeoJSON"
+              style={({ pressed }) => ({
+                alignItems: "center",
+                gap: 6,
+                paddingVertical: 20,
+                borderRadius: 22,
+                borderWidth: 1.5,
+                borderStyle: "dashed",
+                borderColor: c.border,
+                backgroundColor: c.dataSurface,
+                opacity: pressed ? 0.7 : 1,
+              })}
+            >
+              <View
+                style={{
+                  width: 44,
+                  height: 44,
+                  borderRadius: 14,
+                  backgroundColor: c.surface,
+                  alignItems: "center",
+                  justifyContent: "center",
+                }}
+              >
+                <Upload size={20} color={c.ink} />
+              </View>
+              <T size={14} style={{ fontFamily: fonts.bold }}>
+                Add data files
+              </T>
+              <T muted size={12}>
+                CSV, XLSX, KML, KMZ or GeoJSON
+              </T>
+            </Pressable>
+            <SectionLabel>Source files</SectionLabel>
             {state.files.length ? (
-              state.files.map((f) => (
-                <Row key={`${f.source ?? "uploaded"}:${f.name}`}>
-                  <View style={{ flex: 1 }}>
-                    <T size={13}>{fileDisplayName(f)}</T>
-                    <T muted size={11}>
-                      {f.summary}
-                    </T>
-                  </View>
-                  <Switch
-                    accessibilityLabel={`Show ${fileDisplayName(f)} source file`}
-                    value={f.visible}
-                    onValueChange={(visible) =>
-                      state.set({
-                        files: state.files.map((x) =>
-                          x === f ? { ...x, visible } : x,
-                        ),
-                      })
-                    }
-                    trackColor={{ true: c.primary }}
-                  />
-                </Row>
-              ))
+              <View>
+                {state.files.map((f, i) => (
+                  <Row
+                    key={`${f.source ?? "uploaded"}:${f.name}`}
+                    style={{
+                      minHeight: 64,
+                      gap: 12,
+                      borderTopWidth: i ? 1 : 0,
+                      borderColor: c.divider,
+                    }}
+                  >
+                    <FileBadge label={f.type} />
+                    <View style={{ flex: 1 }}>
+                      <T size={13} style={{ fontFamily: fonts.bold }}>
+                        {fileDisplayName(f)}
+                      </T>
+                      <T muted size={11}>
+                        {f.summary}
+                      </T>
+                    </View>
+                    <Toggle
+                      accessibilityLabel={`Show ${fileDisplayName(f)} source file`}
+                      value={f.visible}
+                      onValueChange={(visible) =>
+                        state.set({
+                          files: state.files.map((x) =>
+                            x === f ? { ...x, visible } : x,
+                          ),
+                        })
+                      }
+                    />
+                  </Row>
+                ))}
+              </View>
             ) : (
               <T muted>No files loaded yet.</T>
             )}
           </>
         )}
       </Sheet>
+    </View>
+  );
+}
+
+function RoundButton({
+  icon: Icon,
+  label,
+  onPress,
+  badge = 0,
+}: {
+  icon: LucideIcon;
+  label: string;
+  onPress: () => void;
+  badge?: number;
+}) {
+  const c = useTheme();
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={badge ? `${label}, ${badge} active` : label}
+      onPress={onPress}
+      style={({ pressed }) => ({
+        width: 50,
+        height: 50,
+        borderRadius: 25,
+        alignItems: "center",
+        justifyContent: "center",
+        backgroundColor: c.surface,
+        boxShadow: c.floatShadow,
+        opacity: pressed ? 0.75 : 1,
+      })}
+    >
+      <Icon size={20} color={c.ink} />
+      {badge > 0 && (
+        <View
+          style={{
+            position: "absolute",
+            top: 2,
+            right: 2,
+            minWidth: 18,
+            height: 18,
+            borderRadius: 9,
+            paddingHorizontal: 4,
+            alignItems: "center",
+            justifyContent: "center",
+            backgroundColor: c.primary,
+          }}
+        >
+          <T size={10} style={{ fontFamily: fonts.bold, color: c.onPrimary }}>
+            {badge}
+          </T>
+        </View>
+      )}
+    </Pressable>
+  );
+}
+
+function StackButton({
+  icon: Icon,
+  label,
+  onPress,
+}: {
+  icon: LucideIcon;
+  label: string;
+  onPress: () => void;
+}) {
+  const c = useTheme();
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={label}
+      onPress={onPress}
+      style={({ pressed }) => ({
+        height: 46,
+        alignItems: "center",
+        justifyContent: "center",
+        backgroundColor: pressed ? c.dataSurface : "transparent",
+      })}
+    >
+      <Icon size={19} color={c.ink} />
+    </Pressable>
+  );
+}
+
+function FilterPill({
+  label,
+  onRemove,
+}: {
+  label: string;
+  onRemove: () => void;
+}) {
+  const c = useTheme();
+  return (
+    <Pressable
+      onPress={onRemove}
+      accessibilityRole="button"
+      accessibilityLabel={`Remove ${label} filter`}
+      style={{
+        minHeight: 44,
+        flexDirection: "row",
+        alignItems: "center",
+        gap: 6,
+        paddingLeft: 14,
+        paddingRight: 10,
+        borderRadius: 999,
+        backgroundColor: c.primary,
+        boxShadow: c.floatShadow,
+      }}
+    >
+      <T size={12} style={{ fontFamily: fonts.bold, color: c.onPrimary }}>
+        {label}
+      </T>
+      <X size={14} color={c.onPrimary} />
+    </Pressable>
+  );
+}
+
+function Metric({ value, label }: { value: string; label: string }) {
+  const c = useTheme();
+  return (
+    <View
+      style={{
+        flex: 1,
+        backgroundColor: c.dataSurface,
+        borderRadius: 18,
+        padding: 12,
+        gap: 2,
+      }}
+    >
+      <T heading size={22} numberOfLines={1} adjustsFontSizeToFit>
+        {value}
+      </T>
+      <T muted size={11}>
+        {label}
+      </T>
+    </View>
+  );
+}
+
+function SectionLabel({ children }: { children: string }) {
+  return (
+    <T heading size={17}>
+      {children}
+    </T>
+  );
+}
+
+function WardSwatches() {
+  const c = useTheme();
+  return (
+    <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+      <View style={{ flexDirection: "row", gap: 2 }}>
+        {c.wardFills.map((fill, index) => (
+          <View
+            key={fill}
+            style={{
+              width: 4,
+              height: 12,
+              backgroundColor: fill,
+              borderWidth: 0.5,
+              borderColor: c.wardStrokes[index],
+              borderRadius: 2,
+              opacity: c.wardFillOpacity,
+            }}
+          />
+        ))}
+      </View>
+      <T muted size={11}>
+        Wards
+      </T>
     </View>
   );
 }

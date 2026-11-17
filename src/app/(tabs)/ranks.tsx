@@ -1,24 +1,25 @@
 import { router } from "expo-router";
-import { Download, ListOrdered, SlidersHorizontal } from "lucide-react-native";
-import { useMemo, useState } from "react";
+import {
+  ArrowUpDown,
+  Check,
+  ChevronDown,
+  Download,
+  ListOrdered,
+  type LucideIcon,
+} from "lucide-react-native";
+import { useMemo, useRef, useState } from "react";
 import { Pressable, ScrollView, View } from "react-native";
 import { rankSegments } from "../../analysis/rankings";
 import { RankKind } from "../../analysis/types";
 import { SegmentRow } from "../../components/SegmentRow";
 import { Sheet } from "../../components/Sheet";
-import {
-  Button,
-  Chip,
-  Empty,
-  Input,
-  Row,
-  Screen,
-  T,
-} from "../../components/ui";
+import { useTourTarget } from "../../components/tourTargets";
+import { Button, Empty, Input, Row, Screen, T } from "../../components/ui";
 import { download } from "../../services/download";
 import { exportWorkbook } from "../../services/export";
 import { useFlow } from "../../store/useFlow";
 import { fonts, useTheme } from "../../theme";
+
 const sorts = [
   "Final rank",
   "V/C ratio",
@@ -27,10 +28,31 @@ const sorts = [
   "Lanes",
   "A–Z",
 ];
+const kinds: { key: RankKind; label: string; description: string }[] = [
+  {
+    key: "combined",
+    label: "Combined",
+    description: "V/C rank + collision rank, lowest score first",
+  },
+  {
+    key: "vc",
+    label: "V/C ratio",
+    description: "Traffic volume ÷ LOS E capacity, highest first",
+  },
+  {
+    key: "collisions",
+    label: "Collisions",
+    description: "Crashes on the segment, most first",
+  },
+];
+
 export default function Rankings() {
   const c = useTheme(),
     ward = useFlow((s) => s.ward),
     result = useFlow((s) => s.results);
+  const scroll = useRef<React.ComponentRef<typeof ScrollView>>(null);
+  const wardsTarget = useTourTarget("ranks-wards", scroll);
+  const firstTarget = useTourTarget("ranks-first", scroll);
   const [kind, setKind] = useState<RankKind>("combined"),
     [query, setQuery] = useState(""),
     [sort, setSort] = useState("Final rank"),
@@ -43,6 +65,7 @@ export default function Rankings() {
     () => rankSegments(result?.segments ?? []),
     [result],
   );
+  const kindInfo = kinds.find((k) => k.key === kind)!;
   const rows = [
     ...(allWards ? citywide[kind] : (result?.wards[ward]?.[kind] ?? [])),
   ].filter((s) => s.road.toLowerCase().includes(query.toLowerCase()));
@@ -79,175 +102,168 @@ export default function Rankings() {
   }
   return (
     <View style={{ flex: 1 }}>
-      <Screen style={{ paddingHorizontal: 0 }}>
-        <View style={{ paddingHorizontal: 20, gap: 16 }}>
-          <Row>
-            <T heading size={29}>
-              Rankings
-            </T>
-            <Row style={{ gap: 4 }}>
-              {[
-                {
-                  key: "kind",
-                  icon: ListOrdered,
-                  label: `Ranking type: ${kind === "vc" ? "V/C ratio" : kind}`,
-                },
-                {
-                  key: "sort",
-                  icon: SlidersHorizontal,
-                  label: `Sort by ${sort}`,
-                },
-                { key: "export", icon: Download, label: "Export rankings" },
-              ].map(({ key, icon: Icon, label }) => (
+      <Screen scrollRef={scroll} style={{ paddingHorizontal: 0 }}>
+        <Row style={{ paddingHorizontal: 20 }}>
+          <T heading size={30}>
+            Rankings
+          </T>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Export rankings"
+            accessibilityHint="Opens workbook export options"
+            onPress={() => setSheet("export")}
+            style={({ pressed }) => ({
+              width: 44,
+              height: 44,
+              borderRadius: 22,
+              alignItems: "center",
+              justifyContent: "center",
+              backgroundColor: c.dataSurface,
+              opacity: pressed ? 0.7 : 1,
+            })}
+          >
+            <Download size={20} color={c.ink} />
+          </Pressable>
+        </Row>
+
+        <View {...wardsTarget} style={{ gap: 16 }}>
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={{ gap: 8, paddingHorizontal: 20 }}
+            accessibilityLabel="Filter rankings by ward"
+          >
+            {(["all", 1, 2, 3, 4, 5, 6, 7, 8] as const).map((value) => {
+              const active =
+                value === "all" ? allWards : !allWards && ward === value;
+              return (
                 <Pressable
-                  key={key}
+                  key={value}
                   accessibilityRole="button"
-                  accessibilityLabel={label}
-                  accessibilityHint={
-                    key === "export"
-                      ? "Opens workbook export options"
-                      : "Opens ranking options"
+                  accessibilityLabel={
+                    value === "all" ? "All wards" : `Ward ${value}`
                   }
-                  onPress={() => setSheet(key)}
+                  accessibilityState={{ selected: active }}
+                  onPress={() => {
+                    setAllWards(value === "all");
+                    if (value !== "all")
+                      useFlow.getState().set({ ward: value });
+                    setLimit(20);
+                  }}
                   style={({ pressed }) => ({
-                    width: 44,
-                    height: 44,
-                    borderRadius: 14,
-                    borderWidth: 1,
-                    borderColor: c.border,
+                    minHeight: 44,
+                    paddingHorizontal: 18,
                     alignItems: "center",
                     justifyContent: "center",
-                    backgroundColor: pressed ? c.primaryTint : c.surface,
+                    borderRadius: 999,
+                    backgroundColor: active ? c.primary : c.dataSurface,
+                    opacity: pressed ? 0.75 : 1,
                   })}
                 >
-                  <Icon size={21} strokeWidth={2} color={c.ink} />
+                  <T
+                    size={14}
+                    style={{
+                      fontFamily: fonts.bold,
+                      color: active ? c.onPrimary : c.muted,
+                    }}
+                  >
+                    {value === "all" ? "All" : `Ward ${value}`}
+                  </T>
                 </Pressable>
-              ))}
-            </Row>
-          </Row>
-        </View>
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={{
-            gap: 10,
-            paddingBottom: 4,
-            paddingHorizontal: 20,
-          }}
-          accessibilityLabel="Filter rankings by ward"
-        >
-          {(["all", 1, 2, 3, 4, 5, 6, 7, 8] as const).map((value) => {
-            const active =
-              value === "all" ? allWards : !allWards && ward === value;
-            return (
-              <Pressable
-                key={value}
-                accessibilityRole="button"
-                accessibilityLabel={
-                  value === "all" ? "All wards" : `Ward ${value}`
-                }
-                accessibilityState={{ selected: active }}
-                onPress={() => {
-                  setAllWards(value === "all");
-                  if (value !== "all") useFlow.getState().set({ ward: value });
-                  setLimit(20);
-                }}
-                style={({ pressed }) => ({
-                  minWidth: 64,
-                  minHeight: 50,
-                  paddingHorizontal: 18,
-                  alignItems: "center",
-                  justifyContent: "center",
-                  borderRadius: 15,
-                  borderWidth: 2,
-                  borderBottomWidth: pressed ? 2 : 5,
-                  borderColor: c.ink,
-                  backgroundColor: active ? c.primary : c.surface,
-                  transform: [{ translateY: pressed ? 3 : 0 }],
-                })}
-              >
-                <T
-                  size={15}
-                  style={{
-                    fontFamily: fonts.bold,
-                    color: active ? c.onPrimary : c.ink,
-                  }}
-                >
-                  {value === "all" ? "All" : `Ward ${value}`}
-                </T>
-              </Pressable>
-            );
-          })}
-        </ScrollView>
-        <View style={{ paddingHorizontal: 20, gap: 16 }}>
-          <Input
-            search
-            placeholder="Search roads"
-            value={query}
-            onChangeText={setQuery}
-          />
-          <Row>
-            <T muted size={12}>
-              {allWards ? "All of Norman" : `Ward ${ward}`} ·{" "}
-              {kind === "vc" ? "V/C" : kind} rank
-            </T>
-            <T muted size={12}>
-              {result ? rows.length : "—"} segments ranked
-            </T>
-          </Row>
-          {sort !== "Final rank" && (
-            <T muted size={12}>
-              Sorted by {sort}
-            </T>
-          )}
-          <View
-            style={{
-              gap: 8,
-            }}
-          >
-            {rows.length ? (
-              rows
-                .slice(0, limit)
-                .map((segment) => (
-                  <SegmentRow
-                    key={segment.id}
-                    segment={segment}
-                    kind={kind}
-                    minimal
-                  />
-                ))
-            ) : (
-              <Empty
-                title={
-                  query
-                    ? "No matching segments"
-                    : result
-                      ? "No segments in this list"
-                      : "Rankings are waiting for data"
-                }
-                body={
-                  query
-                    ? "Try another road name."
-                    : "Import the raw files to calculate ward rankings. Results will appear here automatically."
-                }
-                action={() => router.push("/import")}
+              );
+            })}
+          </ScrollView>
+
+          <View style={{ paddingHorizontal: 20, gap: 12 }}>
+            <Row style={{ gap: 10 }}>
+              <Dropdown
+                icon={ListOrdered}
+                label={kindInfo.label}
+                accessibilityLabel={`Ranking type: ${kindInfo.label}`}
+                onPress={() => setSheet("kind")}
               />
-            )}
+              <Dropdown
+                icon={ArrowUpDown}
+                label={sort}
+                accessibilityLabel={`Sort by ${sort}`}
+                onPress={() => setSheet("sort")}
+              />
+            </Row>
+            <Input
+              search
+              placeholder="Search roads"
+              value={query}
+              onChangeText={setQuery}
+              style={{ borderWidth: 0, backgroundColor: c.dataSurface }}
+            />
           </View>
+        </View>
+
+        <View {...firstTarget} style={{ paddingHorizontal: 20 }}>
+          <Row style={{ alignItems: "flex-end" }}>
+            <T heading size={19}>
+              {allWards ? "All of Norman" : `Ward ${ward}`}
+            </T>
+            <T muted size={12}>
+              {result ? rows.length : "—"} ranked
+            </T>
+          </Row>
+          <T muted size={12} style={{ marginTop: 2, marginBottom: 6 }}>
+            {kindInfo.description}
+            {sort !== "Final rank" ? ` · sorted by ${sort}` : ""}
+          </T>
+          {rows[0] ? (
+            <SegmentRow segment={rows[0]} kind={kind} />
+          ) : (
+            <Empty
+              title={
+                query
+                  ? "No matching segments"
+                  : result
+                    ? "No segments in this list"
+                    : "Rankings are waiting for data"
+              }
+              body={
+                query
+                  ? "Try another road name."
+                  : "Import the raw files to calculate ward rankings. Results will appear here automatically."
+              }
+              action={() => router.push("/import")}
+            />
+          )}
+        </View>
+
+        {/* Rows after the first sit outside the tour target so it stays one row tall. */}
+        <View style={{ paddingHorizontal: 20, marginTop: -16 }}>
+          {rows.slice(1, limit).map((segment) => (
+            <SegmentRow
+              key={segment.id}
+              segment={segment}
+              kind={kind}
+              divider
+            />
+          ))}
           {rows.length > limit && (
             <Button
               outline
-              label="Show more segments"
+              label={`Show more (${rows.length - limit} left)`}
               onPress={() => setLimit((n) => n + 20)}
+              style={{ marginTop: 8 }}
             />
           )}
           {Boolean(status) && (
-            <T muted size={12} accessibilityLiveRegion="polite">
+            <T
+              muted
+              size={12}
+              accessibilityLiveRegion="polite"
+              style={{ marginTop: 8 }}
+            >
               {status}
             </T>
           )}
         </View>
       </Screen>
+
       <Sheet
         title={
           sheet === "kind"
@@ -260,41 +276,42 @@ export default function Rankings() {
         onClose={() => setSheet("")}
       >
         {sheet === "kind" ? (
-          (["combined", "vc", "collisions"] as RankKind[]).map((key) => (
-            <Chip
-              key={key}
-              label={
-                key === "combined"
-                  ? "Combined"
-                  : key === "vc"
-                    ? "V/C ratio"
-                    : "Collisions"
-              }
-              active={kind === key}
-              onPress={() => {
-                setKind(key);
-                setLimit(20);
-                setSheet("");
-              }}
-            />
-          ))
+          <View>
+            {kinds.map((k, i) => (
+              <OptionRow
+                key={k.key}
+                label={k.label}
+                description={k.description}
+                selected={kind === k.key}
+                divider={i > 0}
+                onPress={() => {
+                  setKind(k.key);
+                  setLimit(20);
+                  setSheet("");
+                }}
+              />
+            ))}
+          </View>
         ) : sheet === "sort" ? (
-          sorts.map((s) => (
-            <Chip
-              key={s}
-              label={s}
-              active={sort === s}
-              onPress={() => {
-                setSort(s);
-                setSheet("");
-              }}
-            />
-          ))
+          <View>
+            {sorts.map((s, i) => (
+              <OptionRow
+                key={s}
+                label={s}
+                selected={sort === s}
+                divider={i > 0}
+                onPress={() => {
+                  setSort(s);
+                  setSheet("");
+                }}
+              />
+            ))}
+          </View>
         ) : (
           <>
-            <T muted>
-              Includes rankings, all segments, unmatched records and run
-              settings.
+            <T muted size={13}>
+              One Excel workbook with the rankings, every segment, unmatched
+              records and the run settings.
             </T>
             {!result && (
               <T>
@@ -307,25 +324,113 @@ export default function Rankings() {
               disabled={!result || busy}
               onPress={() => save(false)}
             />
-            {allWards && (
-              <Button
-                label={
-                  busy ? "Preparing workbook…" : "Export citywide rankings"
-                }
-                disabled={!result || busy}
-                onPress={() => save(false, true)}
-              />
-            )}
             <Button
               outline
               label="Export all 8 wards"
               disabled={!result || busy}
               onPress={() => save(true)}
             />
-            {Boolean(status) && <T>{status}</T>}
+            {allWards && (
+              <Button
+                outline
+                label="Export citywide rankings"
+                disabled={!result || busy}
+                onPress={() => save(false, true)}
+              />
+            )}
+            {Boolean(status) && <T size={12}>{status}</T>}
           </>
         )}
       </Sheet>
     </View>
+  );
+}
+
+function Dropdown({
+  icon: Icon,
+  label,
+  accessibilityLabel,
+  onPress,
+}: {
+  icon: LucideIcon;
+  label: string;
+  accessibilityLabel: string;
+  onPress: () => void;
+}) {
+  const c = useTheme();
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={accessibilityLabel}
+      accessibilityHint="Opens ranking options"
+      onPress={onPress}
+      style={({ pressed }) => ({
+        flex: 1,
+        minHeight: 46,
+        flexDirection: "row",
+        alignItems: "center",
+        gap: 8,
+        paddingHorizontal: 14,
+        borderRadius: 999,
+        borderWidth: 1,
+        borderColor: c.border,
+        backgroundColor: c.surface,
+        opacity: pressed ? 0.7 : 1,
+      })}
+    >
+      <Icon size={17} color={c.muted} />
+      <T
+        size={13}
+        numberOfLines={1}
+        style={{ flex: 1, fontFamily: fonts.bold }}
+      >
+        {label}
+      </T>
+      <ChevronDown size={16} color={c.muted} />
+    </Pressable>
+  );
+}
+
+function OptionRow({
+  label,
+  description,
+  selected,
+  divider,
+  onPress,
+}: {
+  label: string;
+  description?: string;
+  selected: boolean;
+  divider: boolean;
+  onPress: () => void;
+}) {
+  const c = useTheme();
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityState={{ selected }}
+      onPress={onPress}
+      style={({ pressed }) => ({
+        minHeight: 56,
+        flexDirection: "row",
+        alignItems: "center",
+        gap: 12,
+        borderTopWidth: divider ? 1 : 0,
+        borderColor: c.divider,
+        opacity: pressed ? 0.6 : 1,
+      })}
+    >
+      <View style={{ flex: 1 }}>
+        <T size={14} style={{ fontFamily: fonts.bold }}>
+          {label}
+        </T>
+        {!!description && (
+          <T muted size={12}>
+            {description}
+          </T>
+        )}
+      </View>
+      {selected && <Check size={20} color={c.primaryText} />}
+    </Pressable>
   );
 }

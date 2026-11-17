@@ -38,8 +38,8 @@ app reads `[longitude, latitude]` and preserves accident, year, date, street,
 cross_street, segment and on_study_segment. These points are a display source;
 they do not replace or add to the published segment collision totals.
 
-Layers offers separate **Crash locations** (original dots) and **Crash heatmap**
-switches. The density layer sums equal-weight Gaussian kernels over nearby
+In Heat mode the map card offers **Crash density** (the heat map) and a separate
+**Crash locations** toggle (original dots). Neither appears in Map or Satellite mode. The density layer sums equal-weight Gaussian kernels over nearby
 crashes, using a radius of approximately 200 metres and yellow-to-dark-red
 colors. Web draws the summed density in a small number of SVG paths and applies a
 Gaussian blur; Google Maps uses

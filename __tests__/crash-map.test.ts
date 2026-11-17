@@ -192,13 +192,10 @@ it("nearby crashes build a stronger hotspot than separated crashes", () => {
   );
 });
 
-it("stores the two crash-layer visibility settings independently", () => {
+it("stores the crash-location layer visibility", () => {
   const { useFlow } = require("../src/store/useFlow");
-  useFlow.setState({ crashPointsVisible: false, crashHeatmapVisible: false });
-  useFlow.getState().set({ crashHeatmapVisible: true });
-  expect(useFlow.getState().crashPointsVisible).toBe(false);
+  useFlow.setState({ crashPointsVisible: false });
   useFlow.getState().set({ crashPointsVisible: true });
-  useFlow.getState().set({ crashHeatmapVisible: false });
   expect(useFlow.getState().crashPointsVisible).toBe(true);
-  expect(useFlow.getState().crashHeatmapVisible).toBe(false);
+  expect(useFlow.getState()).not.toHaveProperty("crashHeatmapVisible");
 });

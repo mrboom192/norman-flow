@@ -36,14 +36,30 @@ function MapSurface({
   children,
   preview,
   zoom,
+  focus,
 }: {
   children: ReactNode;
   preview: boolean;
   zoom: number;
+  focus?: { x: number; y: number; key: number };
 }) {
   const [center, setCenter] = useState({ x: 0, y: 0 });
   const surface = useRef<HTMLDivElement>(null);
   const [size, setSize] = useState({ width: 360, height: 360 });
+  const [lastFocus, setLastFocus] = useState(focus);
+  if (focus !== lastFocus) {
+    setLastFocus(focus);
+    // Place the focused road in the upper part of the map, above the details sheet.
+    if (focus)
+      setCenter({
+        x: focus.x,
+        y:
+          focus.y +
+          (size.height * 0.22 * 360) /
+            Math.max(1, Math.min(size.width, size.height)) /
+            zoom,
+      });
+  }
   useEffect(() => {
     const element = surface.current;
     if (!element || preview) return;
@@ -137,6 +153,8 @@ export type MapProps = {
   mode?: string;
   metric?: "vc" | "collisions";
   crashSegmentIds?: Set<string>;
+  /** Called when the map zooms itself to fit a selected segment. */
+  onZoomTo?: (zoom: number) => void;
 };
 export function RoadMap({
   preview = false,
@@ -146,6 +164,7 @@ export function RoadMap({
   mode = "Map",
   metric = "vc",
   crashSegmentIds,
+  onZoomTo,
 }: MapProps) {
   const c = useTheme(),
     state = useFlow(),
@@ -163,9 +182,17 @@ export function RoadMap({
     () => topSegmentMarkers(state.files, roads),
     [state.files, roads],
   );
-  const crashHeat = !preview && state.crashHeatmapVisible;
-  const crashDots = !preview && state.crashPointsVisible;
-  const vcHeat = mode === "Heat" && metric === "vc";
+  const heatMode = !preview && mode === "Heat";
+  const crashHeat = heatMode && metric === "collisions";
+  const crashDots = heatMode && state.crashPointsVisible;
+  const vcHeat = heatMode && metric === "vc";
+  // Segments picked on the map stay put; selections from elsewhere zoom to fit.
+  const tapped = useRef<string | null>(null);
+  const select = (id: string) => {
+    tapped.current = id;
+    if (onSelectSegment) onSelectSegment(id);
+    else state.set({ selected: id });
+  };
   const range = heatRange(roads, metric);
   const bounds = useMemo(() => {
     let minLat = Infinity,
@@ -185,6 +212,41 @@ export function RoadMap({
     return { minLat, maxLat, minLon, maxLon };
   }, [data, crashPoints, crashHeat, crashDots]);
   const { minLat, maxLat, minLon, maxLon } = bounds;
+  const selectedSegment = roads.find((s) => s.id === state.selected);
+  const [focus, setFocus] = useState<{ x: number; y: number; key: number }>();
+  const lastSelected = useRef<string | undefined>(undefined);
+  useEffect(() => {
+    const id = selectedSegment?.id;
+    if (preview || id === lastSelected.current) return;
+    lastSelected.current = id;
+    if (!selectedSegment || minLat === Infinity) return;
+    if (tapped.current === id) {
+      tapped.current = null;
+      return;
+    }
+    const cos = Math.cos((minLat * Math.PI) / 180);
+    const base =
+      320 /
+      Math.max(
+        Math.max((maxLon - minLon) * cos, 0.001),
+        Math.max(maxLat - minLat, 0.001),
+      );
+    const lats = selectedSegment.geometry.map((p) => p[0]),
+      lons = selectedSegment.geometry.map((p) => p[1]);
+    const sMinLat = Math.min(...lats),
+      sMaxLat = Math.max(...lats),
+      sMinLon = Math.min(...lons),
+      sMaxLon = Math.max(...lons);
+    const extent =
+      Math.max((sMaxLon - sMinLon) * cos, sMaxLat - sMinLat, 0.0005) * base;
+    // Viewport center offsets are expressed in zoom-1 units, so they do not depend on zoom.
+    setFocus({
+      x: ((sMinLon + sMaxLon) / 2 - (minLon + maxLon) / 2) * cos * base,
+      y: -((sMinLat + sMaxLat) / 2 - (minLat + maxLat) / 2) * base,
+      key: Date.now(),
+    });
+    onZoomTo?.(Math.min(Math.max(200 / extent, 1), 1024));
+  }, [preview, selectedSegment, minLat, maxLat, minLon, maxLon, onZoomTo]);
   if (minLat === Infinity)
     return (
       <View
@@ -236,14 +298,19 @@ export function RoadMap({
     `${180 + (lon - (minLon + maxLon) / 2) * Math.cos((minLat * Math.PI) / 180) * scale},${180 - (lat - (minLat + maxLat) / 2) * scale}`;
   return (
     <View style={{ flex: 1, backgroundColor: c.mapBackground }}>
-      <MapSurface key={state.mapReset} zoom={zoom} preview={preview}>
+      <MapSurface
+        key={state.mapReset}
+        zoom={zoom}
+        preview={preview}
+        focus={focus}
+      >
         {data.wards.map((w, i) =>
           w.rings.map((ring, j) => (
             <Polygon
               key={`${i}-${j}`}
               points={ring.map(project).join(" ")}
               fill={c.wardFills[(w.id - 1) % c.wardFills.length]}
-              fillOpacity={c.wardFillOpacity * (crashHeat ? 0.25 : 1)}
+              fillOpacity={c.wardFillOpacity}
               stroke={c.wardStrokes[(w.id - 1) % c.wardStrokes.length]}
               strokeWidth={c.wardStrokeWidth}
             />
@@ -274,30 +341,40 @@ export function RoadMap({
           const selected = s.id === state.selected;
           const color = selected
             ? c.primary
-            : crashHeat
-              ? c.muted
-              : vcHeat
-                ? heatColor(heatValue(s, metric), range, c.heatColors, c.muted)
-                : segmentLengthColor(s.lengthMi);
+            : vcHeat
+              ? heatColor(heatValue(s, metric), range, c.heatColors, c.muted)
+              : segmentLengthColor(s.lengthMi);
           return (
             <WebPolyline
               key={s.id}
               points={s.geometry.map(project).join(" ")}
               fill="none"
               stroke={color}
-              strokeWidth={selected ? 5 : crashHeat ? 0.8 : preview ? 1 : 2.5}
-              strokeOpacity={crashHeat && !selected ? 0.3 : 1}
+              strokeWidth={selected ? 5 : preview ? 1 : 2.5}
               strokeLinecap="round"
               strokeLinejoin="round"
-              onClick={() =>
-                !preview &&
-                (onSelectSegment
-                  ? onSelectSegment(s.id)
-                  : state.set({ selected: s.id }))
-              }
+              onClick={() => !preview && select(s.id)}
             />
           );
         })}
+        {/* Draw the selected road last, with a dark casing so it stands out on any ward fill. */}
+        {selectedSegment &&
+          !preview &&
+          [
+            { color: c.ink, width: 9 },
+            { color: c.primary, width: 5 },
+          ].map((line) => (
+            <WebPolyline
+              key={`selected-${line.width}`}
+              points={selectedSegment.geometry.map(project).join(" ")}
+              fill="none"
+              stroke={line.color}
+              strokeWidth={line.width}
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              pointerEvents="none"
+            />
+          ))}
         {crashDots && (
           <CrashPointDots
             points={crashPoints}
@@ -314,11 +391,7 @@ export function RoadMap({
             return (
               <G
                 key={`rank-${marker.id}`}
-                onClick={() =>
-                  onSelectSegment
-                    ? onSelectSegment(marker.id)
-                    : state.set({ selected: marker.id })
-                }
+                onClick={() => select(marker.id)}
                 accessibilityLabel={`Published city combined rank ${marker.rank}: ${marker.road}`}
               >
                 <Circle cx={cx} cy={cy} r={22} fill="transparent" />

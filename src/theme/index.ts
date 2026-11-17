@@ -60,6 +60,11 @@ export const colors = {
   dataSurface: "#F5F5F5",
   dataInk: "#171717",
   dataMuted: "#1C1C1C",
+  // Rank badges for 1st, 2nd and 3rd. Dark ink text passes 4.5:1 on all three.
+  medals: ["#F2C230", "#C9CED6", "#D08A4E"],
+  medalBorders: ["#B8890F", "#8E96A3", "#9A5A26"],
+  // Lift for controls floating over the map.
+  floatShadow: "0px 6px 20px rgba(23, 23, 23, 0.14)",
 };
 export const fonts = {
   heading: "Fredoka_600SemiBold",
@@ -98,6 +103,7 @@ export function useTheme() {
           blue: "#AAC8FF",
           mapBackground: "#1D1D1D",
           dataSurface: "#242424",
+          floatShadow: "0px 6px 20px rgba(0, 0, 0, 0.45)",
         }
       : {}),
   };

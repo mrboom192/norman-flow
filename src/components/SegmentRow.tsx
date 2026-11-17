@@ -1,22 +1,21 @@
 import { router } from "expo-router";
+import { ChevronDown, MapPin, TriangleAlert } from "lucide-react-native";
 import { useState } from "react";
 import { Pressable, View } from "react-native";
 import { RankKind, SegmentResult } from "../analysis/types";
 import { useFlow } from "../store/useFlow";
-import { fonts, format, useTheme } from "../theme";
-import { Button, Card, Row, T } from "./ui";
+import { colors, fonts, format, useTheme } from "../theme";
+import { Button, Row, T } from "./ui";
+
+/** A ranked segment as a flush list row that expands to show its details. */
 export function SegmentRow({
   segment: s,
   kind = "combined",
-  compact = false,
-  minimal = false,
-  wardLabel,
+  divider = false,
 }: {
   segment: SegmentResult;
   kind?: RankKind;
-  compact?: boolean;
-  minimal?: boolean;
-  wardLabel?: number;
+  divider?: boolean;
 }) {
   const [expanded, setExpanded] = useState(false),
     c = useTheme();
@@ -26,138 +25,144 @@ export function SegmentRow({
       : kind === "vc"
         ? s.vcRank
         : s.collisionRank;
+  const medal = rank && rank <= 3 ? c.medals[rank - 1] : undefined;
+  const medalBorder = rank && rank <= 3 ? c.medalBorders[rank - 1] : undefined;
+  const [value, unit] =
+    kind === "combined"
+      ? [format(s.combinedScore), "score"]
+      : kind === "vc"
+        ? [format(s.vc, 2), "V/C"]
+        : [format(s.collisions), "crashes"];
   return (
-    <Card
+    <View
       style={{
-        padding: minimal ? 16 : 14,
-        gap: 10,
-        ...(minimal
-          ? {
-              borderRadius: 18,
-              borderWidth: 1,
-              borderColor: c.border,
-              backgroundColor: c.background,
-            }
-          : {}),
+        borderTopWidth: divider ? 1 : 0,
+        borderColor: c.divider,
+        paddingBottom: expanded ? 14 : 0,
+        gap: 12,
       }}
     >
       <Pressable
         accessibilityRole="button"
-        accessibilityLabel={`${s.road}, segment ${s.index}, rank ${rank}. ${expanded ? "Collapse" : "Expand"} details`}
+        accessibilityLabel={`Rank ${format(rank)}: ${s.road}, segment ${s.index}. ${value} ${unit}. ${expanded ? "Collapse" : "Expand"} details`}
         accessibilityState={{ expanded }}
         onPress={() => setExpanded(!expanded)}
-        style={{ minHeight: 44, justifyContent: "center" }}
+        style={({ pressed }) => ({
+          minHeight: 68,
+          flexDirection: "row",
+          alignItems: "center",
+          gap: 12,
+          opacity: pressed ? 0.6 : 1,
+        })}
       >
-        <Row>
-          <View
-            style={{
-              width: minimal ? 32 : 38,
-              height: minimal ? 32 : 38,
-              borderRadius: minimal ? 16 : 12,
-              alignItems: "center",
-              justifyContent: "center",
-              backgroundColor: (rank ?? 99) <= 3 ? c.primary : c.primaryTint,
-            }}
-          >
-            <T
-              heading
-              size={19}
-              style={{ color: (rank ?? 99) <= 3 ? c.onPrimary : c.primaryDeep }}
-            >
-              {format(rank)}
-            </T>
-          </View>
-          <View style={{ flex: 1 }}>
-            <T size={minimal ? 14 : 15} style={{ fontFamily: fonts.bold }}>
-              {s.road}{" "}
-              <T muted size={12}>
-                · {s.lengthMi.toFixed(2)} mi
-              </T>
-            </T>
-            <T muted size={12}>
-              {s.from && s.to
-                ? `${s.from} → ${s.to}`
-                : `Segment ${s.index} of ${s.of}`}
-              {wardLabel ? ` · Ward ${wardLabel}` : ""}
-            </T>
-          </View>
-          {!compact && (
-            <View style={{ alignItems: "flex-end" }}>
-              <T heading size={18}>
-                {kind === "combined"
-                  ? format(s.combinedScore)
-                  : kind === "vc"
-                    ? format(s.vc, 2)
-                    : format(s.collisions)}
-              </T>
-              <T muted size={10}>
-                {kind === "combined"
-                  ? "score"
-                  : kind === "vc"
-                    ? "V/C"
-                    : "crashes"}
-              </T>
-            </View>
-          )}
-        </Row>
-      </Pressable>
-      {compact && (
-        <View style={{ paddingLeft: 50, gap: 5 }}>
-          <Row
-            style={{ justifyContent: "flex-start", flexWrap: "wrap", gap: 6 }}
-          >
-            <Tag label={`V/C rank ${format(s.vcRank)}`} />
-            <Tag label={`Collision rank ${format(s.collisionRank)}`} />
-          </Row>
-          <Tag blue label={`Score ${format(s.combinedScore)}`} />
+        <View
+          style={{
+            width: 38,
+            height: 38,
+            borderRadius: 12,
+            alignItems: "center",
+            justifyContent: "center",
+            backgroundColor: medal ?? c.dataSurface,
+            borderWidth: 1.5,
+            borderColor: medalBorder ?? c.border,
+          }}
+        >
+          <T heading size={17} style={{ color: medal ? colors.ink : c.ink }}>
+            {format(rank)}
+          </T>
         </View>
-      )}
+        <View style={{ flex: 1 }}>
+          <T size={14} style={{ fontFamily: fonts.bold }} numberOfLines={1}>
+            {s.road}
+          </T>
+          <T muted size={12} numberOfLines={1}>
+            {s.from && s.to
+              ? `${s.from} → ${s.to}`
+              : `Segment ${s.index} of ${s.of}`}{" "}
+            · {s.lengthMi.toFixed(2)} mi
+          </T>
+        </View>
+        <View style={{ alignItems: "flex-end", minWidth: 44 }}>
+          <T heading size={18}>
+            {value}
+          </T>
+          <T muted size={10}>
+            {unit}
+          </T>
+        </View>
+        <ChevronDown
+          size={18}
+          color={c.muted}
+          style={{ transform: [{ rotate: expanded ? "180deg" : "0deg" }] }}
+        />
+      </Pressable>
       {expanded && (
         <>
-          <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
+          <View
+            style={{
+              flexDirection: "row",
+              flexWrap: "wrap",
+              backgroundColor: c.dataSurface,
+              borderRadius: 18,
+              padding: 6,
+            }}
+          >
             {[
-              ["V/C rank", `${format(s.vcRank)} · ratio ${format(s.vc, 2)}`],
+              ["V/C rank", format(s.vcRank), `ratio ${format(s.vc, 2)}`],
               [
                 "Collision rank",
-                `${format(s.collisionRank)} · ${format(s.collisions)} crashes`,
+                format(s.collisionRank),
+                `${format(s.collisions)} crashes`,
               ],
               [
-                "Highest traffic count",
-                `${format(s.maxVolume)} (${s.volumeYear ?? "—"})`,
+                "Highest traffic",
+                format(s.maxVolume),
+                s.volumeYear
+                  ? `vehicles/day · ${s.volumeYear}`
+                  : "vehicles/day",
               ],
               [
                 "LOS E capacity",
-                `${format(s.capacity)} · ${format(s.lanes)} lanes`,
+                format(s.capacity),
+                `${format(s.lanes)} lanes`,
               ],
-            ].map(([label, value]) => (
-              <View
-                key={label}
-                style={{
-                  width: "48%",
-                  padding: 10,
-                  borderRadius: 12,
-                  backgroundColor: c.background,
-                }}
-              >
+            ].map(([label, main, sub]) => (
+              <View key={label} style={{ width: "50%", padding: 10, gap: 1 }}>
                 <T muted size={11}>
                   {label}
                 </T>
-                <T size={12} style={{ fontFamily: fonts.bold }}>
-                  {value}
+                <T heading size={18}>
+                  {main}
+                </T>
+                <T muted size={11}>
+                  {sub}
                 </T>
               </View>
             ))}
           </View>
-          <T muted size={11}>
-            Start {s.start.join(", ")} · End {s.end.join(", ")} ·{" "}
-            {s.lengthMi.toFixed(2)} mi
-          </T>
           {s.flags.map((f) => (
-            <T key={f} size={12} style={{ color: c.primaryText }}>
-              {f}
-            </T>
+            <Row
+              key={f}
+              style={{
+                justifyContent: "flex-start",
+                gap: 8,
+                padding: 10,
+                borderRadius: 14,
+                backgroundColor: c.chipTint,
+              }}
+            >
+              <TriangleAlert size={16} color={c.primaryDeep} />
+              <T size={12} style={{ flex: 1, color: c.primaryDeep }}>
+                {f}
+              </T>
+            </Row>
           ))}
+          <T muted size={11}>
+            Segment {s.index} of {s.of} · Start {s.start.join(", ")} · End{" "}
+            {s.end.join(", ")}
+          </T>
           <Button
+            icon={MapPin}
             label="Show on map"
             onPress={() => {
               useFlow.getState().set({ selected: s.id });
@@ -166,24 +171,6 @@ export function SegmentRow({
           />
         </>
       )}
-    </Card>
-  );
-}
-function Tag({ label, blue = false }: { label: string; blue?: boolean }) {
-  const c = useTheme();
-  return (
-    <View
-      style={{
-        alignSelf: "flex-start",
-        borderRadius: 7,
-        paddingHorizontal: 8,
-        paddingVertical: 3,
-        backgroundColor: blue ? c.blueTint : c.chipTint,
-      }}
-    >
-      <T size={11} style={{ color: c.primaryDeep }}>
-        {label}
-      </T>
     </View>
   );
 }

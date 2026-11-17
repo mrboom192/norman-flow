@@ -21,22 +21,22 @@ export function DataStatCard({
       style={{
         flex: 1,
         minWidth: 0,
-        minHeight: 172,
-        borderRadius: 30,
-        padding: 20,
-        gap: 12,
+        minHeight: 128,
+        borderRadius: 24,
+        padding: 16,
+        gap: 10,
         backgroundColor,
       }}
     >
-      <Icon size={28} strokeWidth={2} color={colors.dataInk} />
+      <Icon size={22} strokeWidth={2} color={colors.dataInk} />
       <View style={{ gap: 4 }}>
         <T
-          size={14}
+          size={13}
           style={{ color: colors.dataMuted, fontFamily: fonts.medium }}
         >
           {label}
         </T>
-        <T heading size={36} style={{ color: colors.dataInk }}>
+        <T heading size={30} style={{ color: colors.dataInk }}>
           {value}
         </T>
         {detail ? (

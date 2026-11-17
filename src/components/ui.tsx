@@ -4,6 +4,8 @@ import {
   Pressable,
   ScrollView,
   StyleSheet,
+  Switch,
+  SwitchProps,
   Text,
   TextInput,
   TextInputProps,
@@ -416,6 +418,45 @@ export function Logo({ size = 40 }: { size?: number }) {
       <Circle cx="33" cy="63" r="7" fill={c.ink} />
       <Circle cx="65" cy="63" r="7" fill={c.ink} />
     </Svg>
+  );
+}
+/** Switch with a visible off-state track so it lines up with row edges on every platform. */
+export function Toggle(props: SwitchProps) {
+  const c = useTheme();
+  return (
+    <Switch
+      trackColor={{ false: c.border, true: c.primary }}
+      thumbColor={c.white}
+      ios_backgroundColor={c.border}
+      {...props}
+    />
+  );
+}
+export function FileBadge({ label }: { label: string }) {
+  const c = useTheme();
+  return (
+    <View
+      style={{
+        width: 44,
+        height: 40,
+        borderRadius: 11,
+        paddingHorizontal: 3,
+        backgroundColor: c.primaryTint,
+        alignItems: "center",
+        justifyContent: "center",
+      }}
+    >
+      <T
+        size={label.length > 4 ? 8 : 10}
+        style={{
+          fontFamily: fonts.bold,
+          color: c.primaryDeep,
+          letterSpacing: label.length > 4 ? -0.3 : 0,
+        }}
+      >
+        {label}
+      </T>
+    </View>
   );
 }
 export const shared = StyleSheet.create({

@@ -106,7 +106,6 @@ type State = {
   selected: string | null;
   mapReset: number;
   crashPointsVisible: boolean;
-  crashHeatmapVisible: boolean;
   tour: number | null;
   set: (value: Partial<State>) => void;
   commit: (files: DatasetFile[]) => void;
@@ -126,7 +125,6 @@ type SavedState = Pick<
   | "settings"
   | "aliases"
   | "crashPointsVisible"
-  | "crashHeatmapVisible"
 >;
 export const flowStorage = createFlowStorage<SavedState>(Storage, (error) => {
   useFlow.setState({
@@ -150,7 +148,6 @@ export const useFlow = create<State>()(
       selected: null,
       mapReset: 0,
       crashPointsVisible: false,
-      crashHeatmapVisible: false,
       tour: null,
       set,
       commit: (files) => {
@@ -224,7 +221,6 @@ export const useFlow = create<State>()(
         settings: s.settings,
         aliases: s.aliases,
         crashPointsVisible: s.crashPointsVisible,
-        crashHeatmapVisible: s.crashHeatmapVisible,
       }),
       onRehydrateStorage: () => (_state, error) => {
         useFlow.setState({

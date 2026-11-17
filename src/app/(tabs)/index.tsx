@@ -1,108 +1,68 @@
 import { router } from "expo-router";
 import {
+  ArrowRight,
+  ArrowUpRight,
   Bot,
+  CircleHelp,
+  type LucideIcon,
   Map,
   Route,
+  Stethoscope,
   TrafficCone,
   TriangleAlert,
   Upload,
 } from "lucide-react-native";
-import { useCallback, useMemo, useRef } from "react";
-import { ScrollView, View } from "react-native";
-import { CoachTour } from "../../components/CoachTour";
+import { type ReactNode, useMemo, useRef } from "react";
+import { Pressable, ScrollView, View } from "react-native";
 import { DataStatCard } from "../../components/DataStatCard";
 import { MapPreviewCard } from "../../components/MapPreviewCard";
-import { Button, Card, Logo, Row, Screen, T } from "../../components/ui";
+import { useTourTarget } from "../../components/tourTargets";
+import { Logo, Row, Screen, T } from "../../components/ui";
 import { combine, useFlow } from "../../store/useFlow";
-import { colors, format, useTheme } from "../../theme";
+import { colors, fonts, format, useTheme } from "../../theme";
+
 export default function Home() {
-  const c = useTheme(),
-    state = useFlow(),
-    data = useMemo(() => combine(state.files), [state.files]),
-    top = state.results?.wards[state.ward].combined.slice(0, 3) ?? [];
+  const state = useFlow(),
+    data = useMemo(() => combine(state.files), [state.files]);
   const scroll = useRef<React.ComponentRef<typeof ScrollView>>(null);
-  const targets = useRef<(React.ComponentRef<typeof View> | null)[]>([]);
-  const positions = useRef<number[]>([]);
-  const measure = useCallback(
-    (
-      step: number,
-      callback: (bounds: {
-        x: number;
-        y: number;
-        width: number;
-        height: number;
-      }) => void,
-    ) => {
-      let measurement: ReturnType<typeof setTimeout>;
-      const timer = setTimeout(() => {
-        scroll.current?.scrollTo({
-          y: Math.max(0, (positions.current[step] ?? 0) - 100),
-          animated: true,
-        });
-        measurement = setTimeout(
-          () =>
-            targets.current[step]?.measureInWindow((x, y, width, height) =>
-              callback({ x, y, width, height }),
-            ),
-          400,
-        );
-      }, 100);
-      return () => {
-        clearTimeout(timer);
-        clearTimeout(measurement);
-      };
-    },
-    [],
-  );
-  const importData = () => router.push("/import");
+  const mapTarget = useTourTarget("home-map", scroll);
+  const dataTarget = useTourTarget("home-data", scroll);
+  const trafficYears = [
+    ...new Set(data.traffic.map((t) => t.year).filter(Boolean)),
+  ]
+    .sort()
+    .join(", ");
+
   return (
-    <Screen scrollRef={scroll}>
+    <Screen scrollRef={scroll} style={{ gap: 26 }}>
       <Row>
-        <Row style={{ justifyContent: "flex-start" }}>
+        <Row style={{ justifyContent: "flex-start", gap: 10 }}>
           <Logo />
           <T heading size={23}>
             Norman Flow
           </T>
         </Row>
+        <RoundButton
+          icon={CircleHelp}
+          label="How to use the app"
+          onPress={() => router.push("/welcome")}
+        />
       </Row>
-      {/* <View style={{ gap: 4 }}>
-        <T heading size={30} style={{ lineHeight: 34, maxWidth: 330 }}>
-          Which roads need attention?
-        </T>
-        <T muted size={15}>
-          Road segments ranked by traffic load and collisions, for each of
-          Norman’s 8 city wards.
-        </T>
+
+      <View {...mapTarget}>
+        <MapPreviewCard />
       </View>
-      <Input
-        search
-        placeholder="Find a street, segment or ward"
-        onChangeText={(query) =>
-          router.push({ pathname: "/search", params: { q: query } })
-        }
-      /> */}
-      <MapPreviewCard />
-      <View
-        ref={(view) => {
-          targets.current[2] = view;
-        }}
-        onLayout={(e) => {
-          positions.current[2] = e.nativeEvent.layout.y;
-        }}
-        style={{ gap: 16 }}
-      >
-        <View>
-          <T heading size={20}>
-            Data in this analysis
-          </T>
-          <T muted size={12}>
-            Last updated{" "}
-            {state.results?.runAt
+
+      <View {...dataTarget} style={{ gap: 12 }}>
+        <SectionHeader
+          title="Data in this analysis"
+          subtitle={`Last updated ${
+            state.results?.runAt
               ? new Date(state.results.runAt).toLocaleDateString()
-              : "—"}
-          </T>
-        </View>
-        <Row style={{ alignItems: "stretch", gap: 14 }}>
+              : "—"
+          }`}
+        />
+        <Row style={{ alignItems: "stretch", gap: 12 }}>
           <DataStatCard
             icon={Route}
             value={data.segments.length ? format(data.segments.length) : "—"}
@@ -120,7 +80,7 @@ export default function Home() {
             backgroundColor="#F5AF5B"
           />
         </Row>
-        <Row style={{ alignItems: "stretch", gap: 14 }}>
+        <Row style={{ alignItems: "stretch", gap: 12 }}>
           <DataStatCard
             icon={TrafficCone}
             value={
@@ -139,13 +99,7 @@ export default function Home() {
                 ? "Segments with traffic"
                 : "Traffic counts"
             }
-            detail={
-              data.traffic.length
-                ? [...new Set(data.traffic.map((t) => t.year).filter(Boolean))]
-                    .sort()
-                    .join(", ")
-                : undefined
-            }
+            detail={trafficYears || undefined}
             backgroundColor="#f1e17b"
           />
           <DataStatCard
@@ -174,40 +128,188 @@ export default function Home() {
             backgroundColor="#64d87d"
           />
         </Row>
-        <Button
+        <ActionRow
           icon={Upload}
-          label="Add new data & re-rank"
-          onPress={importData}
+          title="Add new data & re-rank"
+          subtitle="Preview changes before anything is saved"
+          primary
+          onPress={() => router.push("/import")}
         />
         {state.results && (
-          <Button
-            outline
-            label="Review analysis diagnostics"
+          <ActionRow
+            icon={Stethoscope}
+            title="Review analysis diagnostics"
+            subtitle="Matched and unmatched records, lane checks"
             onPress={() => router.push("/diagnostics")}
           />
         )}
       </View>
-      <Card style={{ backgroundColor: colors.ink, borderColor: colors.ink }}>
-        <Row style={{ justifyContent: "flex-start" }}>
-          <Bot color={colors.border} size={23} />
-          <T heading size={20} style={{ color: colors.white }}>
-            Ask me about the data
-          </T>
+
+      <View
+        style={{
+          backgroundColor: colors.ink,
+          borderRadius: 24,
+          padding: 18,
+          gap: 12,
+        }}
+      >
+        <Row style={{ justifyContent: "flex-start", gap: 10 }}>
+          <View
+            style={{
+              width: 36,
+              height: 36,
+              borderRadius: 12,
+              alignItems: "center",
+              justifyContent: "center",
+              backgroundColor: colors.darkTint,
+            }}
+          >
+            <Bot color={colors.white} size={19} />
+          </View>
+          <View style={{ flex: 1 }}>
+            <T heading size={19} style={{ color: colors.white }}>
+              Ask me about the data
+            </T>
+            <T size={12} style={{ color: colors.darkMuted }}>
+              Offline answers from this analysis
+            </T>
+          </View>
         </Row>
-        {["How is V/C calculated?", `What’s #1 in Ward ${state.ward}?`].map(
-          (q) => (
-            <Button
-              key={q}
-              label={q}
-              onPress={() =>
-                router.push({ pathname: "/chat", params: { question: q } })
-              }
-            />
-          ),
-        )}
-      </Card>
-      <CoachTour measure={measure} />
+        {[
+          `What’s #1 in Ward ${state.ward}?`,
+          "How is V/C calculated?",
+          "Why are only some segments ranked?",
+        ].map((q) => (
+          <Pressable
+            key={q}
+            accessibilityRole="button"
+            accessibilityLabel={`Ask: ${q}`}
+            onPress={() =>
+              router.push({ pathname: "/chat", params: { question: q } })
+            }
+            style={({ pressed }) => ({
+              minHeight: 48,
+              flexDirection: "row",
+              alignItems: "center",
+              gap: 10,
+              paddingHorizontal: 14,
+              borderRadius: 16,
+              backgroundColor: colors.darkSurface,
+              opacity: pressed ? 0.7 : 1,
+            })}
+          >
+            <T
+              size={14}
+              style={{ flex: 1, color: colors.white, fontFamily: fonts.medium }}
+            >
+              {q}
+            </T>
+            <ArrowUpRight size={17} color={colors.darkMuted} />
+          </Pressable>
+        ))}
+      </View>
     </Screen>
+  );
+}
+
+function SectionHeader({
+  title,
+  subtitle,
+  action,
+}: {
+  title: string;
+  subtitle?: string;
+  action?: ReactNode;
+}) {
+  return (
+    <Row style={{ alignItems: "flex-end" }}>
+      <View style={{ flex: 1 }}>
+        <T heading size={20}>
+          {title}
+        </T>
+        {!!subtitle && (
+          <T muted size={12}>
+            {subtitle}
+          </T>
+        )}
+      </View>
+      {action}
+    </Row>
+  );
+}
+
+function RoundButton({
+  icon: Icon,
+  label,
+  onPress,
+}: {
+  icon: LucideIcon;
+  label: string;
+  onPress: () => void;
+}) {
+  const c = useTheme();
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={label}
+      onPress={onPress}
+      style={({ pressed }) => ({
+        width: 44,
+        height: 44,
+        borderRadius: 22,
+        alignItems: "center",
+        justifyContent: "center",
+        backgroundColor: c.dataSurface,
+        opacity: pressed ? 0.7 : 1,
+      })}
+    >
+      <Icon size={20} color={c.ink} />
+    </Pressable>
+  );
+}
+
+function ActionRow({
+  icon: Icon,
+  title,
+  subtitle,
+  primary = false,
+  onPress,
+}: {
+  icon: LucideIcon;
+  title: string;
+  subtitle: string;
+  primary?: boolean;
+  onPress: () => void;
+}) {
+  const c = useTheme();
+  const ink = primary ? c.onPrimary : c.ink;
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={title}
+      onPress={onPress}
+      style={({ pressed }) => ({
+        minHeight: 64,
+        flexDirection: "row",
+        alignItems: "center",
+        gap: 12,
+        paddingHorizontal: 14,
+        borderRadius: 20,
+        backgroundColor: primary ? c.primary : c.dataSurface,
+        opacity: pressed ? 0.75 : 1,
+      })}
+    >
+      <Icon size={20} color={ink} />
+      <View style={{ flex: 1 }}>
+        <T size={14} style={{ fontFamily: fonts.bold, color: ink }}>
+          {title}
+        </T>
+        <T size={12} style={{ color: primary ? c.onPrimary : c.muted }}>
+          {subtitle}
+        </T>
+      </View>
+      <ArrowRight size={18} color={ink} />
+    </Pressable>
   );
 }
 

@@ -33,9 +33,9 @@ export function answerQuestion(
   if (faq) return { text: faq.answer, source: faq.source };
   if (/score|combined|rank/i.test(question))
     return {
-      text: "Each ward is ranked separately. V/C and collision ranks use shared ranks for ties (1, 2, 2, 4). The combined score adds those two ranks: the lowest score comes first, and higher V/C breaks a score tie. Only segments with a V/C and at least one matched collision enter the combined list.",
+      text: "Each ward is ranked separately, and every rank is a unique position (1, 2, 3, 4). The combined score adds the V/C rank and collision rank: the lowest score comes first, and higher V/C breaks a score tie. Only segments with a V/C and at least one matched collision enter the combined list.",
     };
   return {
-    text: "I couldn’t find an answer in the app’s content or current analysis. Try a FAQ above, ask “What’s #1 in Ward 3?”, or ask for collisions on a named road segment. I can explain rankings, but cannot recommend projects, costs or fixes.",
+    text: "I couldn’t find an answer in the app’s content or current analysis. Try one of the suggested questions, ask “What’s #1 in Ward 3?”, or ask for collisions on a named road segment. I can explain rankings, but cannot recommend projects, costs or fixes.",
   };
 }

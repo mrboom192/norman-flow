@@ -1,27 +1,159 @@
-export const faqs = [
+// Offline answers for the Chatbot. Content comes from the project READMEs and
+// AGENTS.md. Order matters: the first matching entry answers, so specific
+// questions sit above broad ones (e.g. "V/C of 1.0" before "How is V/C calculated?").
+export type FaqTopic = "Rankings" | "Data" | "Map" | "Using the app";
+export type Faq = {
+  question: string;
+  topic: FaqTopic;
+  keywords: RegExp;
+  answer: string;
+  source?: string;
+};
+export const faqTopics: FaqTopic[] = [
+  "Rankings",
+  "Data",
+  "Map",
+  "Using the app",
+];
+export const faqs: Faq[] = [
+  {
+    question: "What does a V/C of 1.0 mean?",
+    topic: "Rankings",
+    keywords: /(v\/?c|ratio).*(1(\.0)?|one|over|above|mean)|over capacity/i,
+    answer:
+      "V/C compares traffic with what the road is designed to carry. 1.0 means the highest recorded daily volume equals the road’s LOS E capacity; anything at or above 1.0 is over capacity. Lower values mean more spare capacity.",
+  },
+  {
+    question: "How is the combined score calculated?",
+    topic: "Rankings",
+    keywords: /combined|score/i,
+    answer:
+      "Combined score = V/C rank + collision rank, both within the same ward. For example, 2nd in collisions and 4th in V/C gives a score of 6. The lowest score ranks first. Only segments with both a V/C and at least one collision are in the combined list.",
+  },
+  {
+    question: "How are ties ranked?",
+    topic: "Rankings",
+    keywords: /\btie|tied|same rank|equal/i,
+    answer:
+      "Every rank is a unique position (1, 2, 3, 4). Segments with the same value are ordered by their stable segment ID. When two combined scores are equal, the segment with the higher V/C goes first.",
+  },
+  {
+    question: "Why is a road in two wards’ lists?",
+    topic: "Rankings",
+    keywords:
+      /two wards|both wards|boundary|more than one ward|multiple wards/i,
+    answer:
+      "City rule: a segment that touches two wards is ranked in both. Each ward ranks its own segments, so the same road can have a different rank in each list. The All view ranks every unique segment citywide.",
+  },
+  {
+    question: "Why are only some segments ranked?",
+    topic: "Rankings",
+    keywords:
+      /only some|not ranked|unranked|why.*(119|375)|missing.*rank|left out/i,
+    answer:
+      "In the current City data, 119 of 375 segments are ranked. A segment needs a usable traffic count to get a V/C. Segments with no usable count, and collector roads the City asked to leave out, stay on the map but don’t enter the rankings.",
+  },
   {
     question: "How is V/C calculated?",
-    keywords: /v\/?c|capacity|capacities|ratio/i,
+    topic: "Rankings",
+    keywords: /v\/?c|capacity|capacities|ratio|los e/i,
     answer:
-      "V/C is the highest recorded daily traffic volume divided by the road’s LOS E capacity, rounded to two decimals. Capacity comes from the ACOG table and the segment’s lane count and facility type. For example, the supplied guidelines list 17,100 vehicles per day for a 2-lane arterial and 38,000 for a 4-lane divided arterial.",
+      "V/C is the highest recorded two-way daily traffic volume divided by the road’s LOS E capacity. Capacity comes from the ACOG table, using the segment’s lane count (from City street data or a team aerial check) and facility type. For example, the guidelines list 17,100 vehicles per day for a 2-lane arterial and 38,000 for a 4-lane divided arterial.",
     source: "ACOG roadway capacity guidelines",
   },
   {
-    question: "How do I add a file?",
-    keywords: /add|upload|import|new file/i,
+    question: "Which traffic count is used?",
+    topic: "Data",
+    keywords:
+      /which (traffic )?count|highest (count|volume)|traffic count|volume/i,
     answer:
-      "Tap “Add new data & re-rank” on Home, or open Layers on the map. Choose your files, check the detected columns and preview, then confirm. New traffic years are added; collisions are deduplicated by case number. You can undo the last run from Menu.",
+      "Each segment uses its highest two-way count across all years (City rule: 18,000 in 2019 and 20,000 in 2025 → 20,000). Collector-class counts are left out. Adding a new year of counts keeps the old years and picks the highest again.",
+  },
+  {
+    question: "Which years of crashes are included?",
+    topic: "Data",
+    keywords:
+      /which years|years? of (crash|collision)|2016|2026|how (old|recent)|date range/i,
+    answer:
+      "Collision totals cover 2016 to 2026. Collisions are counted raw for each segment, not per mile.",
+  },
+  {
+    question: "Where does the data come from?",
+    topic: "Data",
+    keywords:
+      /where.*(data|come from)|source|city data|files? (are|is) (included|bundled)/i,
+    answer:
+      "The app ships with the City of Norman’s prepared export: a rankings table for the 119 ranked segments, map lines for all 375 segments, the 8 City Council ward boundaries, and recorded crash locations. You can replace or add to any of these from Menu → Data files.",
+  },
+  {
+    question: "Is my data sent anywhere?",
+    topic: "Data",
+    keywords:
+      /privacy|private|sent|upload.*(server|cloud)|online|internet|offline|secure/i,
+    answer:
+      "No. Files and results stay on this device or browser. This chatbot works offline and only answers from the app’s own content and your loaded analysis. Clearing browser data or uninstalling removes saved files, so export to Excel to keep a copy.",
+  },
+  {
+    question: "What are the numbered map markers?",
+    topic: "Map",
+    keywords: /marker|numbered|pin|badge/i,
+    answer:
+      "The numbered markers show the City’s published citywide combined ranks 1–10, placed halfway along each segment. They can differ from the app’s recalculated ward rankings.",
+  },
+  {
+    question: "How does the crash heat map work?",
+    topic: "Map",
+    keywords: /heat ?map|density|hotspot|crash locations?/i,
+    answer:
+      "Switch the map to Heat, then pick Crash density. Each recorded crash counts equally, and nearby crashes within about 200 metres add up into hotspots shown from yellow to dark red. Turn on Crash locations to see the individual points. The heat map is for display only; it doesn’t change any collision totals or rankings.",
+  },
+  {
+    question: "Why are some roads gray?",
+    topic: "Map",
+    keywords: /gr[ae]y|faded|no color|uncomputed/i,
+    answer:
+      "Gray roads have no computed value: either there is no usable traffic count, or it is a collector road the City left out of the rankings. They stay on the map for reference.",
+  },
+  {
+    question: "How do I add a file?",
+    topic: "Using the app",
+    keywords: /add|upload|import|new file|replace/i,
+    answer:
+      "Tap “Add new data & re-rank” on Home or in Menu, or use Files on the map. Choose your files, check the detected columns and preview, then confirm. New traffic years are added; collisions are matched by case number so nothing is counted twice. You can undo the last run from Menu.",
+  },
+  {
+    question: "How do I update the data next year?",
+    topic: "Using the app",
+    keywords: /update|next year|refresh|rerun|re-run|new year/i,
+    answer:
+      "Rerun the team’s Colab notebook or Excel tool. If only the numbers changed, import the new rankings table. If segments, keys or eligibility changed, replace the rankings table, segments and wards files together. The app re-ranks automatically and keeps the previous run so you can undo.",
+  },
+  {
+    question: "How do I export the rankings?",
+    topic: "Using the app",
+    keywords: /export|excel|xlsx|download|spreadsheet/i,
+    answer:
+      "On Rankings, tap the download button. Export one ward, all 8 wards or the citywide list. The workbook has one sheet per ward (combined, V/C and collision lists side by side) plus All segments, Unmatched and Run info sheets. Macros are not included.",
   },
   {
     question: "Which file types work?",
-    keywords: /file type|format|xlsx|csv|kmz|kml/i,
+    topic: "Using the app",
+    keywords: /file type|format|csv|kmz|kml|geojson/i,
     answer:
-      "Import traffic counts and collisions as XLSX or CSV. Import road segments and ward boundaries as KML or KMZ. Rankings export to XLSX. The optional ODOT shapefile and ACOG PDF will be connected when those assets are supplied.",
+      "Import traffic counts, collisions and rankings tables as XLSX or CSV. Import road segments and ward boundaries as KML, KMZ or GeoJSON. Rankings export to XLSX. The optional ODOT shapefile and ACOG PDF will be connected when those files are supplied.",
   },
   {
     question: "Why 1-mile segments?",
-    keywords: /mile|segment length/i,
+    topic: "Using the app",
+    keywords: /mile|segment length|short/i,
     answer:
-      "The competition brief uses the KMZ’s folder 02 segments (at least one mile) for ranking. Shorter roads in folder 03 appear on the map only. Collision rankings use raw counts, not counts per mile.",
+      "The competition brief splits each road into segments of about one mile, so each stretch of a road is ranked on its own. Collision rankings use raw counts, not counts per mile.",
+  },
+  {
+    question: "Does the app recommend projects?",
+    topic: "Using the app",
+    keywords: /recommend|fix|cost|project|should we|budget/i,
+    answer:
+      "No. Norman Flow only produces ranked lists of road segments for each ward. It never recommends projects, costs or fixes; those decisions stay with City staff.",
   },
 ];

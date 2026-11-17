@@ -4,6 +4,7 @@ import { Home, ChartNoAxesColumn, Bot, Menu } from "lucide-react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useEffect } from "react";
 import { useTheme } from "../../theme";
+import { CoachTour } from "../../components/CoachTour";
 import { T } from "../../components/ui";
 import { useFlow } from "../../store/useFlow";
 const items = [
@@ -84,6 +85,7 @@ export default function TabLayout() {
           <Tabs.Screen key={item.name} name={item.name} />
         ))}
       </Tabs>
+      <CoachTour />
     </View>
   );
 }

@@ -57,8 +57,7 @@ export function HeatLegend({
         </T>
         {!crashCount && (
           <T muted size={11}>
-            No crash points visible. Check filters and the Crash locations
-            layer.
+            No crash points match the current filters.
           </T>
         )}
       </View>

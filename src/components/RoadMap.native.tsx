@@ -31,6 +31,8 @@ type MapProps = {
   mode?: string;
   metric?: "vc" | "collisions";
   crashSegmentIds?: Set<string>;
+  /** Web-only; native fits the camera to the selected segment itself. */
+  onZoomTo?: (zoom: number) => void;
 };
 export function RoadMap({
   preview = false,
@@ -62,7 +64,8 @@ export function RoadMap({
     Platform.OS === "android" ||
     (Constants.expoConfig?.extra?.googleMapsIosEnabled === true &&
       Constants.executionEnvironment !== "storeClient");
-  const crashHeat = !preview && state.crashHeatmapVisible;
+  const heatMode = !preview && mode === "Heat";
+  const crashHeat = heatMode && metric === "collisions";
   const weightedPoints = useMemo(
     () =>
       crashHeat && googleMaps
@@ -81,8 +84,16 @@ export function RoadMap({
         : undefined,
     [crashHeat, googleMaps, crashPoints, c.crashHeatColors],
   );
-  const crashDots = !preview && state.crashPointsVisible;
-  const vcHeat = mode === "Heat" && metric === "vc";
+  const crashDots = heatMode && state.crashPointsVisible;
+  const vcHeat = heatMode && metric === "vc";
+  const [ready, setReady] = useState(false);
+  // Segments picked on the map pan only; selections from elsewhere zoom to fit.
+  const tapped = useRef<string | null>(null);
+  const select = (id: string) => {
+    tapped.current = id;
+    if (onSelectSegment) onSelectSegment(id);
+    else state.set({ selected: id });
+  };
   const [mapSize, setMapSize] = useState({ width: 390, height: 700 });
   const [region, setRegion] = useState<Region>({
     latitude: 35.2226,
@@ -107,9 +118,9 @@ export function RoadMap({
     id: undefined as string | undefined,
   });
   useEffect(() => {
+    if (preview || !ready) return;
     const previous = last.current;
     last.current = { zoom, reset: state.mapReset, id: selected?.id };
-    if (preview) return;
     let next = camera.current;
     if (previous.reset !== state.mapReset) {
       next = {
@@ -125,7 +136,31 @@ export function RoadMap({
         latitudeDelta: next.latitudeDelta * factor,
         longitudeDelta: next.longitudeDelta * factor,
       };
+    } else if (
+      selected &&
+      previous.id !== selected.id &&
+      tapped.current !== selected.id
+    ) {
+      tapped.current = null;
+      map.current?.fitToCoordinates(
+        selected.geometry.map(([latitude, longitude]) => ({
+          latitude,
+          longitude,
+        })),
+        {
+          edgePadding: {
+            top: 200,
+            right: 70,
+            // Keep the road above the half-height details sheet.
+            bottom: Math.round(mapSize.height * 0.5),
+            left: 50,
+          },
+          animated: true,
+        },
+      );
+      return;
     } else if (selected && previous.id !== selected.id) {
+      tapped.current = null;
       const point =
         selected.geometry[Math.floor(selected.geometry.length / 2)] ??
         selected.start;
@@ -133,7 +168,7 @@ export function RoadMap({
     } else return;
     camera.current = next;
     map.current?.animateToRegion(next, 250);
-  }, [preview, zoom, state.mapReset, selected]);
+  }, [preview, ready, zoom, state.mapReset, selected, mapSize.height]);
   return (
     <View style={{ flex: 1 }}>
       <MapView
@@ -145,6 +180,7 @@ export function RoadMap({
             height: event.nativeEvent.layout.height,
           })
         }
+        onMapReady={() => setReady(true)}
         onRegionChangeComplete={(nextRegion) => {
           camera.current = nextRegion;
           setRegion(nextRegion);
@@ -176,7 +212,7 @@ export function RoadMap({
               )}
             fillColor={
               c.wardFills[(w.id - 1) % c.wardFills.length] +
-              Math.round(c.wardFillOpacity * (crashHeat ? 0.25 : 1) * 255)
+              Math.round(c.wardFillOpacity * 255)
                 .toString(16)
                 .padStart(2, "0")
             }
@@ -240,27 +276,42 @@ export function RoadMap({
             strokeColor={
               s.id === state.selected
                 ? c.primary
-                : crashHeat
-                  ? c.muted + "66"
-                  : vcHeat
-                    ? heatColor(
-                        heatValue(s, metric),
-                        range,
-                        c.heatColors,
-                        c.muted,
-                      )
-                    : segmentLengthColor(s.lengthMi)
+                : vcHeat
+                  ? heatColor(
+                      heatValue(s, metric),
+                      range,
+                      c.heatColors,
+                      c.muted,
+                    )
+                  : segmentLengthColor(s.lengthMi)
             }
-            strokeWidth={s.id === state.selected ? 6 : crashHeat ? 1 : 3}
+            strokeWidth={s.id === state.selected ? 6 : 3}
             zIndex={2}
             tappable
-            onPress={() =>
-              onSelectSegment
-                ? onSelectSegment(s.id)
-                : state.set({ selected: s.id })
-            }
+            onPress={() => select(s.id)}
           />
         ))}
+        {/* Draw the selected road on top, with a dark casing so it stands out on any ward fill. */}
+        {selected &&
+          !preview &&
+          [
+            { color: c.ink, width: 10 },
+            { color: c.primary, width: 6 },
+          ].map((line) => (
+            <Polyline
+              key={`selected-${line.width}`}
+              coordinates={selected.geometry.map(([latitude, longitude]) => ({
+                latitude,
+                longitude,
+              }))}
+              strokeColor={line.color}
+              strokeWidth={line.width}
+              lineCap="round"
+              lineJoin="round"
+              tappable={false}
+              zIndex={line.width === 10 ? 3 : 4}
+            />
+          ))}
         {sites.map((site) => (
           <Marker
             key={site.id + ":" + site.count}
@@ -307,11 +358,7 @@ export function RoadMap({
               description={marker.road}
               zIndex={10}
               tracksViewChanges={false}
-              onPress={() =>
-                onSelectSegment
-                  ? onSelectSegment(marker.id)
-                  : state.set({ selected: marker.id })
-              }
+              onPress={() => select(marker.id)}
             >
               <View
                 style={{
