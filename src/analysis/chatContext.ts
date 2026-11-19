@@ -12,13 +12,13 @@ export function buildChatContext({
 }: {
   inputs: Inputs;
   results: Results | null;
-  /** e.g. "Dataset: official 2026 rankings." plus any what-if note. */
+  /** e.g. "Dataset: base data (official 2026 results)." plus any what-if note. */
   dataset: string;
 }) {
   const lines: string[] = [dataset];
   const preset = results?.settings.capacityPreset;
   lines.push(
-    `Capacity table in use: ${preset ? `what-if preset "${preset.name}"` : "ACOG 2025 LOS E — official"}.`,
+    `Capacity table in use: ${preset ? `what-if preset "${preset.name}"` : "ACOG 2025 LOS E (official)"}.`,
   );
   if (results) {
     const ranked = results.segments.filter(
@@ -89,7 +89,7 @@ export function buildChatContext({
       `Where it came from: ${page.whereFrom}`,
       `How we used it: ${page.howUsed.join(" ")}`,
       `Key numbers: ${page.keyNumbers
-        .map((k) => `${k.label} ${stats[k.stat] ?? "—"}`)
+        .map((k) => `${k.label} ${stats[k.stat] ?? "N/A"}`)
         .join("; ")}`,
     );
   return lines.join("\n");

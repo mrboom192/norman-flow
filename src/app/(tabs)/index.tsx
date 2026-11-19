@@ -65,7 +65,7 @@ export default function Home() {
           subtitle={`${dataset.label} · updated ${
             state.results?.runAt
               ? new Date(state.results.runAt).toLocaleDateString()
-              : "—"
+              : "N/A"
           }`}
         />
         {/* Each tile opens its detail page (wording in src/config/dataPages.ts). */}
@@ -75,7 +75,7 @@ export default function Home() {
               <DataStatCard
                 key={page.id}
                 icon={tileIcons[page.id] ?? Route}
-                value={stats[page.tile.stat] ?? "—"}
+                value={stats[page.tile.stat] ?? "N/A"}
                 label={page.tile.label}
                 backgroundColor={tileColors[page.id] ?? colors.dataSurface}
                 onPress={() =>

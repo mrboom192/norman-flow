@@ -54,7 +54,8 @@ export async function askChat({
     };
     if (!body.answer?.trim()) return basic();
     return {
-      text: body.answer.trim(),
+      // The app's copy avoids em dashes; keep model answers consistent.
+      text: body.answer.trim().replace(/\s*\u2014\s*/g, ", "),
       sources: body.sources?.filter(Boolean),
       mode: "ai",
     };

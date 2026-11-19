@@ -316,7 +316,7 @@ export default function Rankings() {
               {allWards ? "All of Norman" : `Ward ${ward}`}
             </T>
             <T muted size={12}>
-              {result ? rows.length : "—"} ranked
+              {result ? rows.length : 0} ranked
             </T>
           </Row>
           <T muted size={12} style={{ marginTop: 2, marginBottom: 6 }}>

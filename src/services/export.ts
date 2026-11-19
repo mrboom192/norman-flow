@@ -5,7 +5,7 @@ import { Results, SegmentResult } from "../analysis/types";
 export async function exportWorkbook(
   result: Results,
   ward?: number | "citywide",
-  /** e.g. "Dataset: official 2026 rankings." — the first row of each ranking sheet. */
+  /** e.g. "Dataset: base data (official 2026 results)." Shown as the first row of each ranking sheet. */
   datasetHeader?: string,
 ): Promise<Uint8Array> {
   const workbook = XLSX.utils.book_new();
@@ -129,7 +129,7 @@ export async function exportWorkbook(
       ...(datasetHeader ? [["Dataset", datasetHeader]] : []),
       [
         "Capacity preset",
-        result.settings.capacityPreset?.name ?? "ACOG 2025 LOS E — official",
+        result.settings.capacityPreset?.name ?? "ACOG 2025 LOS E (official)",
       ],
       ["Input files", result.sources.join("; ")],
       ["Match distance (meters)", result.settings.matchDistance],

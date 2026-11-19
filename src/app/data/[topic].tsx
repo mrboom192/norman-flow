@@ -90,7 +90,7 @@ export default function DataPage() {
                   {k.label}
                 </T>
                 <T size={13} style={{ fontFamily: fonts.bold }}>
-                  {stats[k.stat] ?? "—"}
+                  {stats[k.stat] ?? "N/A"}
                 </T>
               </Row>
             ))}
@@ -119,7 +119,7 @@ export default function DataPage() {
               />
             ) : (
               <T key={name} muted size={12}>
-                {name} — not included in this build.
+                {name}: not included in this build.
               </T>
             );
           })}

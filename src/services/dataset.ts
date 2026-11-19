@@ -6,7 +6,7 @@ import type { DatasetFile } from "../store/useFlow";
 export type DatasetKind = "official" | "imported" | "unofficial" | "none";
 export type Dataset = {
   kind: DatasetKind;
-  /** "Viewing: …" line for banners. */
+  /** "Viewing base data …" line for banners. */
   viewing: string;
   /** Set when a custom capacity preset is active. */
   whatIf?: string;
@@ -28,29 +28,45 @@ export function describeDataset(
   const presetTag = preset
     ? `-WhatIf-${preset.name.replace(/[^\w-]+/g, "-").replace(/^-|-$/g, "")}`
     : "";
-  const imported = [...files]
-    .reverse()
-    .find((f) => f.source !== "base" && f.data.summaries);
-  const raw = files.some(
-    (f) =>
-      f.source !== "base" &&
-      (f.data.traffic.length || f.data.collisions.length),
+  const uploads = files.filter((f) => f.source !== "base");
+  const raw = uploads.some(
+    (f) => f.data.traffic.length || f.data.collisions.length,
   );
+  // "file.csv" or "file.csv and 2 more", plus the latest import date.
+  const names = uploads.length
+    ? uploads[uploads.length - 1].name +
+      (uploads.length > 1 ? ` and ${uploads.length - 1} more` : "")
+    : "";
+  const latest = uploads
+    .map((f) => f.importedAt)
+    .filter((d): d is string => Boolean(d))
+    .sort()
+    .pop();
+  const added = latest
+    ? `, added ${new Date(latest).toLocaleDateString()}`
+    : "";
   const base: Omit<Dataset, "fileTag" | "header" | "whatIf"> = !results
     ? { kind: "none", viewing: "No rankings loaded yet." }
-    : raw || (!imported && !results.official && !preset)
+    : raw
       ? {
           kind: "unofficial",
-          viewing: "Viewing: unofficial rankings calculated in the app.",
+          viewing: `Viewing base data plus your uploaded data, recalculated in the app (unofficial): ${names}${added}.`,
         }
-      : imported
+      : uploads.length
         ? {
-            kind: "imported",
-            viewing: `Viewing: new rankings, imported ${new Date(
-              imported.importedAt ?? results.runAt,
-            ).toLocaleDateString()} from ${imported.name}.`,
+            kind: results.official || preset ? "imported" : "unofficial",
+            viewing: `Viewing base data plus your uploaded data: ${names}${added}.`,
           }
-        : { kind: "official", viewing: "Viewing: official 2026 rankings." };
+        : !results.official && !preset
+          ? {
+              kind: "unofficial",
+              viewing:
+                "Viewing base data with changed analysis settings (unofficial).",
+            }
+          : {
+              kind: "official",
+              viewing: "Viewing base data (official 2026 results).",
+            };
   const tag =
     base.kind === "official"
       ? "Official-2026"
@@ -64,8 +80,8 @@ export function describeDataset(
     // Under a what-if preset the rankings aren't official, only the file is.
     header: [
       whatIf && base.kind === "official"
-        ? "Dataset: official 2026 results file."
-        : base.viewing.replace(/^Viewing: /, "Dataset: "),
+        ? "Dataset: base data (official 2026 results file)."
+        : base.viewing.replace(/^Viewing /, "Dataset: "),
       whatIf,
     ]
       .filter(Boolean)

@@ -31,7 +31,7 @@ function capacityFor(s: SegmentResult, settings: Settings) {
     key = `${lanes}-lane expressway`;
   else if (lanes === 4 || lanes === 6) {
     if (s.divided === undefined)
-      s.flags.push("Divider unknown — undivided capacity used");
+      s.flags.push("Divider unknown: undivided capacity used");
     key = `${lanes}-lane arterial, ${s.divided ? "divided" : "undivided"}`;
   } else key = `${lanes}-lane arterial`;
   const value = settings.capacities[key]?.e;
@@ -107,7 +107,7 @@ export function runPipeline(
         : undefined;
     if (row && preset && fromPreset === undefined)
       s.flags.push(
-        "Facility not in the capacity preset — official capacity used",
+        "Facility not in the capacity preset, so the official capacity is used",
       );
     s.capacity =
       fromPreset ??

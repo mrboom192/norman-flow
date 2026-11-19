@@ -99,6 +99,8 @@ type State = {
   welcomeSeen: boolean;
   ward: number;
   dark: boolean;
+  /** Colorblind-friendly map and chart colors (orange and blue). */
+  colorblindMode: boolean;
   primary: string;
   files: DatasetFile[];
   results: Results | null;
@@ -144,6 +146,7 @@ type SavedState = Pick<
   | "welcomeSeen"
   | "ward"
   | "dark"
+  | "colorblindMode"
   | "primary"
   | "files"
   | "results"
@@ -166,6 +169,7 @@ export const useFlow = create<State>()(
       welcomeSeen: false,
       ward: 1,
       dark: false,
+      colorblindMode: false,
       primary: defaultPrimary,
       files: [],
       results: null,
@@ -293,6 +297,8 @@ export const useFlow = create<State>()(
         const saved = {
           ...(persisted as Partial<SavedState> & { colorblind?: boolean }),
         };
+        // `colorblind` was an earlier, removed setting; the current one is
+        // `colorblindMode`, so an old saved value never turns it on.
         delete saved.colorblind;
         return {
           ...current,
@@ -310,6 +316,7 @@ export const useFlow = create<State>()(
         welcomeSeen: s.welcomeSeen,
         ward: s.ward,
         dark: s.dark,
+        colorblindMode: s.colorblindMode,
         primary: s.primary,
         files: s.files,
         results: s.results,

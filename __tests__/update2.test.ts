@@ -206,7 +206,7 @@ it("Reset map removes added data and presets in use, returns to official, and ke
 
 it("D7: dataset says official by default and new rankings after an import", async () => {
   expect(describeDataset(official, base, official.settings).viewing).toBe(
-    "Viewing: official 2026 rankings.",
+    "Viewing base data (official 2026 results).",
   );
   const upload = await parseFile({
     name: "norman_flow_rankings 2027.csv",
@@ -217,7 +217,7 @@ it("D7: dataset says official by default and new rankings after an import", asyn
   const dataset = describeDataset(imported, files, imported.settings);
   expect(dataset.kind).toBe("imported");
   expect(dataset.viewing).toMatch(
-    /^Viewing: new rankings, imported .+ from norman_flow_rankings 2027\.csv\.$/,
+    /^Viewing base data plus your uploaded data: norman_flow_rankings 2027\.csv, added .+\.$/,
   );
   expect(dataset.fileTag).toBe("Imported");
 });
@@ -299,7 +299,7 @@ it("D6: the device sends only question and data to the proxy, never an API key",
   const context = buildChatContext({
     inputs: combine(base),
     results: official,
-    dataset: "Dataset: official 2026 rankings.",
+    dataset: "Dataset: base data (official 2026 results).",
   });
   const answer = await askChat({
     question: "What's #1 in Ward 1?",

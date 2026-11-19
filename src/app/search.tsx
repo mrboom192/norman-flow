@@ -217,7 +217,7 @@ export default function SearchScreen() {
     right: Math.max(16, insets.right),
   };
   const wardLabel = (s: SegmentResult) =>
-    `Ward ${s.wardMajority || s.wards.join(", ") || "—"}`;
+    `Ward ${s.wardMajority || s.wards.join(", ") || "N/A"}`;
 
   return (
     <View style={{ flex: 1, backgroundColor: c.mapBackground }}>
@@ -556,7 +556,7 @@ export default function SearchScreen() {
                   <TriangleAlert size={18} color={c.primaryDeep} />
                   <T size={12} style={{ flex: 1, color: c.primaryDeep }}>
                     Lane count only mapped for {selected.laneCoverage}% of this
-                    segment — check the aerial view.
+                    segment. Check the aerial view.
                   </T>
                 </View>
               )}
@@ -590,7 +590,7 @@ export default function SearchScreen() {
                   ],
                   [
                     selected.preparedStatus ? "Lanes" : "Lanes (GIS)",
-                    `${format(selected.lanes)} · ${selected.travelDirection || "—"}`,
+                    `${format(selected.lanes)} · ${selected.travelDirection || "direction unknown"}`,
                   ],
                   [
                     "Wards touched",
@@ -599,7 +599,7 @@ export default function SearchScreen() {
                         (w) =>
                           `${w}${w === selected.wardMajority ? " (majority)" : ""}`,
                       )
-                      .join(", ") || "—",
+                      .join(", ") || "N/A",
                   ],
                   ["Start", selected.start.join(", ")],
                   ["End", selected.end.join(", ")],
@@ -677,7 +677,7 @@ export default function SearchScreen() {
                         width: 6,
                         height: 32,
                         borderRadius: 3,
-                        backgroundColor: segmentLengthColor(s.lengthMi),
+                        backgroundColor: segmentLengthColor(s.lengthMi, c),
                       }}
                     />
                     <View style={{ flex: 1 }}>

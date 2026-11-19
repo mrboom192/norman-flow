@@ -114,7 +114,7 @@ it("D2: Reset column aliases asks first; Cancel keeps them; Reset clears them", 
   expect(useFlow.getState().aliases).toEqual({});
 });
 
-it("D2/D4: capacity editor — official Save is disabled; Reset asks first and restores ACOG values", async () => {
+it("D2/D4: capacity editor: official Save is disabled; Reset asks first and restores ACOG values", async () => {
   await render(<CapacityPresets mode="edit" onMode={() => {}} />);
   expect(
     screen.getByText("The official preset can’t be changed. Use Save as new."),
@@ -168,8 +168,8 @@ it("D5: themed buttons follow the selected accent color immediately", async () =
 
 it("D7: the banner says official by default, and offers a way back after an import", async () => {
   await render(<DatasetBanner />);
-  expect(screen.getByText("Viewing: official 2026 rankings.")).toBeTruthy();
-  expect(screen.queryByText("Switch to official 2026")).toBeNull();
+  expect(screen.getByText("Viewing base data (official 2026 results).")).toBeTruthy();
+  expect(screen.queryByText("Use base data only")).toBeNull();
 
   const restoreOfficial = jest.fn();
   useFlow.setState({
@@ -186,10 +186,10 @@ it("D7: the banner says official by default, and offers a way back after an impo
   await screen.rerender(<DatasetBanner />);
   expect(
     screen.getByText(
-      /^Viewing: new rankings, imported .+ from norman_flow_rankings 2027\.csv\.$/,
+      /^Viewing base data plus your uploaded data: norman_flow_rankings 2027\.csv, added .+\.$/,
     ),
   ).toBeTruthy();
-  await fireEvent.press(screen.getByText("Switch to official 2026"));
+  await fireEvent.press(screen.getByText("Use base data only"));
   expect(restoreOfficial).toHaveBeenCalled();
 });
 

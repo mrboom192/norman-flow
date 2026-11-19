@@ -256,7 +256,7 @@ export function HeatPanel({
                     ? metric === "vc"
                       ? range.min.toFixed(2)
                       : format(range.min)
-                    : "—"}
+                    : "N/A"}
                 </T>
                 <T muted size={11}>
                   {metric === "vc" ? "V/C ratio" : "Collisions 2016–2026"}
@@ -266,7 +266,7 @@ export function HeatPanel({
                     ? metric === "vc"
                       ? range.max.toFixed(2)
                       : format(range.max)
-                    : "—"}
+                    : "N/A"}
                 </T>
               </Row>
               <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 10 }}>

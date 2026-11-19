@@ -18,13 +18,13 @@ export function useDatasetLabel() {
   if (!results.official)
     return {
       official: false,
-      label: "Unofficial results — calculated in the app",
+      label: "Unofficial results calculated in the app",
     };
   return {
     official: true,
     label: imported
-      ? `Official results — imported from ${imported.name}`
-      : "Official 2026 results — City of Norman, MIS 3213 Group #5",
+      ? `Official results imported from ${imported.name}`
+      : "Official 2026 results · City of Norman, MIS 3213 Group #5",
   };
 }
 

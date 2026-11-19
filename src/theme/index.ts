@@ -83,17 +83,41 @@ export const fonts = {
   bold: "Inter_600SemiBold",
 };
 export const shape = { card: 22, pill: 999, padding: 20, gap: 18 };
-export function segmentLengthColor(lengthMi: number) {
-  let color = colors.segmentShort;
-  if (0.75 <= lengthMi && lengthMi <= 1.25) color = colors.segmentOneMile;
-  if (lengthMi > 1.25) color = colors.segmentLong;
+/**
+ * Colorblind-friendly map and chart colors (Okabe-Ito and ColorBrewer, built on
+ * orange and blue so nothing relies on red versus green). Each scale keeps the
+ * same light-to-dark order as the default palette.
+ */
+export const colorblindColors = {
+  segmentShort: "#E69F00",
+  segmentOneMile: "#0072B2",
+  segmentLong: "#CC79A7",
+  vcScale: ["#FEE6CE", "#FDAE6B", "#F16913", "#B84303", "#6B2600"],
+  collisionScale: ["#DEEBF7", "#9ECAE1", "#4292C6", "#1561A8", "#08306B"],
+  combinedTiers: ["#6B2600", "#B84303", "#F16913", "#FDAE6B"],
+  crashHeatColors: ["#FFF5E6", "#FDD0A2", "#FD8D3C", "#D94801", "#7F2704"],
+  heatColors: ["#FEE6CE", "#FDAE6B", "#F16913", "#B84303", "#6B2600"],
+  crashMarker: "#08306B",
+};
+export function segmentLengthColor(
+  lengthMi: number,
+  palette: Pick<
+    typeof colors,
+    "segmentShort" | "segmentOneMile" | "segmentLong"
+  > = colors,
+) {
+  let color = palette.segmentShort;
+  if (0.75 <= lengthMi && lengthMi <= 1.25) color = palette.segmentOneMile;
+  if (lengthMi > 1.25) color = palette.segmentLong;
   return color;
 }
 export function useTheme() {
   const dark = useFlow((s) => s.dark),
-    primary = useFlow((s) => s.primary);
+    primary = useFlow((s) => s.primary),
+    colorblind = useFlow((s) => s.colorblindMode);
   return {
     ...colors,
+    ...(colorblind ? colorblindColors : {}),
     primary,
     primaryText: accentText(primary),
     onPrimary: luminance(primary) > 0.179 ? colors.ink : colors.white,
@@ -129,7 +153,7 @@ function lightenAccent(hex: string) {
 }
 export const format = (n: number | undefined | null, decimals?: number) =>
   n == null
-    ? "—"
+    ? "N/A"
     : decimals !== undefined
       ? n.toFixed(decimals)
       : n.toLocaleString("en-US");

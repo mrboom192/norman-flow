@@ -6,7 +6,7 @@ export const officialCapacities = capacity as CapacityTable;
 export const officialPresetId = "official";
 export const officialPreset: CapacityPreset = {
   id: officialPresetId,
-  name: "ACOG 2025 LOS E — official",
+  name: "ACOG 2025 LOS E (official)",
   values: Object.fromEntries(
     Object.entries(officialCapacities).map(([k, v]) => [k, v.e]),
   ),

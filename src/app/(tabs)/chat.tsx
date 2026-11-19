@@ -35,7 +35,7 @@ type Message = {
 };
 const greeting: Message = {
   role: "bot",
-  text: "Hi! Ask me about the data — where it came from, how the rankings work, or how to add new files. I answer only from the data loaded in this app.",
+  text: "Hi! Ask me about the data: where it came from, how the rankings work, or how to add new files. I answer only from the data loaded in this app.",
 };
 
 export default function Chat() {

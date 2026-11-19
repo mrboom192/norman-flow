@@ -446,7 +446,7 @@ export function RoadMap({
             const style = styles?.get(s.id);
             const color = styles
               ? (style?.color ?? c.unrankedRoad)
-              : segmentLengthColor(s.lengthMi);
+              : segmentLengthColor(s.lengthMi, c);
             const width = styles
               ? style
                 ? tierWidths[style.tier]

@@ -367,7 +367,7 @@ export function RoadMap({
               strokeColor={
                 styles
                   ? (style?.color ?? c.unrankedRoad)
-                  : segmentLengthColor(s.lengthMi)
+                  : segmentLengthColor(s.lengthMi, c)
               }
               strokeWidth={width}
               zIndex={zIndex}

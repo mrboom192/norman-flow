@@ -4,6 +4,7 @@ import {
   CirclePlay,
   Clapperboard,
   ExternalLink,
+  Eye,
   FolderOpen,
   Gauge,
   Globe,
@@ -165,6 +166,20 @@ export default function Menu() {
                 accessibilityLabel="Dark mode"
                 value={state.dark}
                 onValueChange={(dark) => state.set({ dark })}
+              />
+            }
+          />
+          <MenuRow
+            icon={Eye}
+            title="Colorblind-friendly colors"
+            subtitle="Map and chart colors use orange and blue"
+            trailing={
+              <Toggle
+                accessibilityLabel="Colorblind-friendly colors"
+                value={state.colorblindMode}
+                onValueChange={(colorblindMode) =>
+                  state.set({ colorblindMode })
+                }
               />
             }
           />

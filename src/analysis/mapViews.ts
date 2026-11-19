@@ -103,7 +103,7 @@ export function describeRanked(row: RankedRow) {
     row.from && row.to
       ? `${row.from} to ${row.to}`
       : `segment ${row.index} of ${row.of}`;
-  return `#${row.rank} ${row.road}: ${where} (V/C ${row.vc?.toFixed(2) ?? "—"}, ${row.collisions ?? "—"} crashes)`;
+  return `#${row.rank} ${row.road}: ${where} (V/C ${row.vc?.toFixed(2) ?? "N/A"}, ${row.collisions ?? "N/A"} crashes)`;
 }
 
 /** Badges for the top segments of a view, at each segment's midpoint. */

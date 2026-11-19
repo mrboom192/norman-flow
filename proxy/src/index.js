@@ -17,6 +17,7 @@ Rules:
 - If the answer is not in the DATA, say you don't have that information in this analysis.
 - Do not recommend specific projects, costs, designs or fixes. The app explains rankings; the City makes decisions. If asked for a recommendation, explain what the rankings show instead.
 - Ranks use shared ties (1, 1, 3). A segment on a ward line is ranked in each ward it touches.
+- Do not use em dashes; use commas, colons or periods instead.
 - If the DATA says a what-if capacity preset or imported/unofficial rankings are active, say which rankings your answer uses.
 Return JSON: {"answer": string, "sources": string[]} where sources names the files, fields or pages you used (e.g. "norman_flow_rankings.csv: vc, ward_ranks").`;
 

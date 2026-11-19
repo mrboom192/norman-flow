@@ -35,7 +35,7 @@ export function DatasetBanner({ style }: { style?: ViewStyle }) {
         <Line
           icon={official ? ShieldCheck : TriangleAlert}
           text={dataset.viewing}
-          action={official ? undefined : "Switch to official 2026"}
+          action={official ? undefined : "Use base data only"}
           onAction={restoreOfficial}
           tone={official ? "plain" : "warn"}
         />
