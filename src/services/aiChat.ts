@@ -13,8 +13,10 @@ export type ChatAnswer = {
   source?: string;
 };
 
-/** The proxy's public URL, e.g. https://norman-flow-chat.<account>.workers.dev/chat */
-export const chatProxyUrl = process.env.EXPO_PUBLIC_CHAT_PROXY_URL ?? "";
+/** Public deployed proxy; optionally override for local testing or another deployment. */
+export const chatProxyUrl =
+  process.env.EXPO_PUBLIC_CHAT_PROXY_URL ??
+  "https://norman-flow-chat.mrboom192.workers.dev/chat";
 
 export async function askChat({
   question,

@@ -5,7 +5,7 @@ API key is never in the app or in requests from a device. The Worker holds the
 key as a secret, applies the grounding rules (answer only from the app's data,
 quote numbers exactly, say when something isn't in the data, no project or cost
 recommendations), limits requests per client, and calls Google Gemini
-(`gemini-2.5-flash`, free tier).
+(`gemini-3.1-flash-lite`).
 
 ## Deploy
 
@@ -14,24 +14,20 @@ recommendations), limits requests per client, and calls Google Gemini
 
    ```bash
    npx wrangler login
-   npx wrangler secret put GEMINI_API_KEY
+   npx wrangler secret put NORMAN_FLOW_GEMINI_API_KEY
    npx wrangler deploy
    ```
 
 3. Add your web origin(s) to `ALLOWED_ORIGINS` in `wrangler.toml` (for example
    the deployed web app's URL) and redeploy.
-4. In the app project, set the Worker URL (it is public, not a secret) and
-   restart Metro:
+4. The app defaults to `https://norman-flow-chat.mrboom192.workers.dev/chat`.
+   A fresh clone needs no `.env.local` or Cloudflare login to use this deployment.
+   To use another Worker, set `EXPO_PUBLIC_CHAT_PROXY_URL` in `.env.local`
+   (or the EAS build environment) and reload the app.
 
-   ```bash
-   echo 'EXPO_PUBLIC_CHAT_PROXY_URL=https://norman-flow-chat.<account>.workers.dev/chat' > .env.local
-   ```
-
-   For EAS builds, set the same variable in the EAS environment.
-
-Until the URL is set, or whenever the Worker is unreachable or over its limit,
-the app falls back to its built-in answers and shows
-"AI unavailable, showing basic answers."
+When the Worker is unreachable or over its limit, the app falls back to its
+built-in answers and shows "AI unavailable, showing basic answers."
+An explicitly empty `EXPO_PUBLIC_CHAT_PROXY_URL` disables AI requests.
 
 ## Local testing
 

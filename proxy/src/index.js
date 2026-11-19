@@ -5,7 +5,7 @@
 // grounding rules below, calls Google Gemini and returns a short JSON answer.
 // Deploy steps: proxy/README.md.
 
-const MODEL = "gemini-2.5-flash";
+const MODEL = "gemini-3.1-flash-lite";
 const MAX_BODY_BYTES = 250_000;
 const MAX_QUESTION_CHARS = 500;
 
@@ -58,7 +58,8 @@ export default {
       !headers["Access-Control-Allow-Origin"]
     )
       return json({ error: "Origin not allowed" }, 403, headers);
-    if (!env.GEMINI_API_KEY)
+    const apiKey = env.NORMAN_FLOW_GEMINI_API_KEY || env.GEMINI_API_KEY;
+    if (!apiKey)
       return json({ error: "Proxy is missing GEMINI_API_KEY" }, 503, headers);
 
     // Per-client limit (Cloudflare rate limiting binding; see wrangler.toml).
@@ -99,7 +100,7 @@ export default {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          "x-goog-api-key": env.GEMINI_API_KEY,
+          "x-goog-api-key": apiKey,
         },
         body: JSON.stringify({
           systemInstruction: { parts: [{ text: SYSTEM_RULES }] },
@@ -122,7 +123,23 @@ export default {
     );
     if (upstream.status === 429)
       return json({ error: "Model quota reached" }, 429, headers);
-    if (!upstream.ok) return json({ error: "Model error" }, 502, headers);
+    if (!upstream.ok) {
+      const failure = await upstream.json().catch(() => ({}));
+      // Return only structured diagnostic codes, never upstream messages or keys.
+      const status = failure.error?.status;
+      const reason = failure.error?.details?.find((detail) =>
+        typeof detail.reason === "string",
+      )?.reason;
+      const safeCode = (value) =>
+        typeof value === "string" && /^[A-Z][A-Z0-9_]{0,79}$/.test(value)
+          ? value
+          : undefined;
+      return json(
+        { error: "Model error", upstreamStatus: upstream.status,
+          status: safeCode(status), reason: safeCode(reason) },
+        502, headers,
+      );
+    }
     const result = await upstream.json();
     const text = (result.candidates?.[0]?.content?.parts ?? [])
       .map((p) => p.text ?? "")
