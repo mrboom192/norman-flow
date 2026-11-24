@@ -36,7 +36,7 @@ import { DatasetBanner } from "../components/DatasetBanner";
 import { MapLayerOrder } from "../components/MapLayerOrder";
 import { type MapLayer } from "../analysis/mapLayers";
 import { HeatPanel } from "../components/HeatPanel";
-import type { MapMetric } from "../analysis/mapViews";
+import { mapMetrics, type MapMetric } from "../analysis/mapViews";
 import { RoadMap } from "../components/RoadMap";
 import type { BasemapStatus } from "../components/GoogleBasemap";
 import { SegmentLengthLegend } from "../components/SegmentLengthLegend";
@@ -60,7 +60,7 @@ const mapModes: { label: string; icon: LucideIcon }[] = [
   { label: "Heat", icon: Flame },
 ];
 const snapPoints = ["45%", "90%"];
-type MapSheet = "roads" | "filters" | "layers" | "";
+type MapSheet = "heat" | "roads" | "filters" | "layers" | "";
 
 export default function SearchScreen() {
   const desktop = useDesktopLayout();
@@ -71,7 +71,8 @@ export default function SearchScreen() {
   const [query, setQuery] = useState(params.q ?? ""),
     [chosenMode, setMode] = useState("Map"),
     [basemapStatus, setBasemapStatus] = useState<BasemapStatus>("unavailable"),
-    [sheet, setSheetContent] = useState<Exclude<MapSheet, "">>("roads"),
+    [requestedSheet, setSheetContent] =
+      useState<Exclude<MapSheet, "">>("roads"),
     [sheetOpen, setSheetOpen] = useState(false),
     [zoom, setZoom] = useState(1),
     [wardFilter, setWardFilter] = useState(false),
@@ -87,6 +88,7 @@ export default function SearchScreen() {
   const touring = state.tour !== null;
   const mapView = getTourStep(state.tour)?.mapView;
   const mode = mapView?.mode ?? chosenMode;
+  const sheet = desktop && requestedSheet === "heat" ? "roads" : requestedSheet;
   const metric = mapView?.metric ?? chosenMetric;
   const searchTarget = useTourTarget("map-search");
   const modesTarget = useTourTarget("map-modes");
@@ -434,6 +436,31 @@ export default function SearchScreen() {
       </Row>
     </View>
   );
+  const compactHeat = !desktop && mode === "Heat";
+  const heatLabel = mapMetrics.find((item) => item.key === metric)?.label;
+  const heatScope =
+    metric === "crashes"
+      ? (crashYear ?? "All years")
+      : scopeWard
+        ? `Ward ${scopeWard}`
+        : "Citywide";
+  const heatControls = (
+    <HeatPanel
+      metric={metric}
+      onMetric={setMetric}
+      scopeWard={scopeWard}
+      onScopeWard={setScopeWard}
+      crashYear={crashYear}
+      onCrashYear={setCrashYear}
+      segments={matching}
+      crashCount={crashCount}
+      hotspotYears={hotspotYears}
+      onSelect={(id) => {
+        state.set({ selected: id });
+        setSheet("roads");
+      }}
+    />
+  );
   const mapSummary = (
     <View
       {...summaryTarget}
@@ -445,27 +472,46 @@ export default function SearchScreen() {
         }),
         backgroundColor: c.surface,
         borderRadius: 24,
-        padding: 16,
+        padding: compactHeat ? 6 : 16,
         gap: 12,
         ...float,
       }}
     >
       {mode === "Heat" ? (
-        <HeatPanel
-          metric={metric}
-          onMetric={setMetric}
-          scopeWard={scopeWard}
-          onScopeWard={setScopeWard}
-          crashYear={crashYear}
-          onCrashYear={setCrashYear}
-          segments={matching}
-          crashCount={crashCount}
-          hotspotYears={hotspotYears}
-          onSelect={(id) => {
-            state.set({ selected: id });
-            setSheet("roads");
-          }}
-        />
+        desktop ? (
+          heatControls
+        ) : (
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={`Heat map settings, ${heatLabel}, ${heatScope}`}
+            onPress={() => setSheet("heat")}
+            style={({ pressed }) => ({
+              minHeight: 44,
+              flexDirection: "row",
+              alignItems: "center",
+              gap: 12,
+              paddingHorizontal: 12,
+              opacity: pressed ? 0.75 : 1,
+            })}
+          >
+            <Flame size={20} color={c.primaryText} />
+            <View style={{ flex: 1 }}>
+              <T heading size={16}>
+                {heatLabel}
+              </T>
+              <T muted size={12}>
+                {heatScope}
+              </T>
+            </View>
+            <T
+              size={13}
+              style={{ color: c.primaryText, fontFamily: fonts.bold }}
+            >
+              Settings
+            </T>
+            <SlidersHorizontal size={17} color={c.primaryText} />
+          </Pressable>
+        )
       ) : (
         <View style={{ gap: 6 }}>
           <T heading size={15}>
@@ -494,6 +540,7 @@ export default function SearchScreen() {
         </T>
       )}
       {!desktop &&
+        !compactHeat &&
         (selected ? (
           <Pressable
             onPress={() => setSheet("roads")}
@@ -544,13 +591,25 @@ export default function SearchScreen() {
     </View>
   );
   const panelTitle =
-    sheet === "filters"
-      ? "Filter the map"
-      : sheet === "layers"
-        ? "Files on this map"
-        : (selected?.road ?? "Road segments");
+    sheet === "heat"
+      ? "Heat map settings"
+      : sheet === "filters"
+        ? "Filter the map"
+        : sheet === "layers"
+          ? "Files on this map"
+          : (selected?.road ?? "Road segments");
   const panel =
-    sheet === "roads" ? (
+    sheet === "heat" ? (
+      <>
+        {heatControls}
+        <Button
+          label={
+            selected ? `View ${selected.road} details` : "Explore road segments"
+          }
+          onPress={() => setSheet("roads")}
+        />
+      </>
+    ) : sheet === "roads" ? (
       selected ? (
         <>
           <Row>

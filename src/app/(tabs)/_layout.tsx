@@ -1,3 +1,4 @@
+import { DesktopPage } from "../../components/DesktopPage";
 import { Tabs, router } from "expo-router";
 import { View, Pressable } from "react-native";
 import { Home, ChartNoAxesColumn, Bot, Menu } from "lucide-react-native";
@@ -28,6 +29,9 @@ export default function TabLayout() {
       style={{ flex: 1, backgroundColor: c.background, paddingTop: insets.top }}
     >
       <Tabs
+        screenLayout={({ children }) =>
+          desktop ? <DesktopPage>{children}</DesktopPage> : children
+        }
         screenOptions={{
           headerShown: false,
           tabBarPosition: desktop ? "top" : "bottom",

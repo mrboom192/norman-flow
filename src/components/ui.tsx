@@ -213,7 +213,7 @@ export function IconButton({
       accessibilityRole="button"
       accessibilityLabel={label}
       onPress={onPress}
-      style={[
+      style={({ pressed }) => [
         {
           height: 46,
           width: 46,
@@ -222,7 +222,7 @@ export function IconButton({
           borderRadius: 24,
           borderWidth: 1,
           borderColor: c.border,
-          backgroundColor: c.surface,
+          backgroundColor: pressed ? c.primaryTint : c.surface,
         },
         style,
       ]}

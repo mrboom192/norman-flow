@@ -1,3 +1,4 @@
+import { DesktopPage } from "../components/DesktopPage";
 import { Stack } from "expo-router";
 import { useFonts } from "expo-font";
 import { Fredoka_600SemiBold } from "@expo-google-fonts/fredoka/600SemiBold";
@@ -75,6 +76,13 @@ export default function Layout() {
         >
           <StatusBar style={dark ? "light" : "dark"} />
           <Stack
+            screenLayout={({ children, route }) =>
+              desktop && route.name !== "(tabs)" ? (
+                <DesktopPage>{children}</DesktopPage>
+              ) : (
+                children
+              )
+            }
             screenOptions={{
               headerShown: false,
               contentStyle: { backgroundColor: c.background },
