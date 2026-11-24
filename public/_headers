@@ -1,0 +1,2 @@
+/*
+  Content-Security-Policy: script-src 'self' 'sha256-67fhrP0+BkBqmgGGXTtgiVO/9EQs3QruYNU/7fnRkI8=' https://maps.googleapis.com https://maps.gstatic.com

@@ -73,6 +73,11 @@ the build command `npm run build:web`, and the publish directory
 the Netlify project's build environment and allow the site’s hostname in the
 key’s restrictions. Trigger a new deploy after changing a build variable.
 
+The web export includes `public/_headers`. Its Content Security Policy allows
+the app and Google Maps scripts and blocks Netlify’s injected badge script.
+The inline script hash is for Expo Router’s static hydration bootstrap. Check
+the exported HTML if an Expo upgrade changes the bootstrap.
+
 For AI chat on the deployed site, add the site's origin to the Cloudflare
 Worker's `ALLOWED_ORIGINS` and redeploy the Worker. Set
 `EXPO_PUBLIC_CHAT_PROXY_URL` before building if you use a different proxy.
