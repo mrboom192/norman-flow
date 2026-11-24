@@ -3,9 +3,44 @@ import type { RankKind, SegmentResult } from "./types";
 // Version 3: official tie rule (shared ranks, 1, 1, 3) and full-precision V/C.
 export const rankingVersion = 3;
 
+const rankFields = {
+  combined: "combinedRank",
+  vc: "vcRank",
+  collisions: "collisionRank",
+} as const;
+
+export type RankingSort =
+  | "rank"
+  | "combinedScore"
+  | "vc"
+  | "collisions"
+  | "maxVolume"
+  | "lanes"
+  | "road";
+export type SortDirection = "ascending" | "descending";
+
+export function sortRankingRows(
+  rows: SegmentResult[],
+  kind: RankKind,
+  sort: RankingSort,
+  direction: SortDirection,
+): SegmentResult[] {
+  const field = sort === "rank" ? rankFields[kind] : sort;
+  const sign = direction === "ascending" ? 1 : -1;
+  return [...rows].sort((a, b) => {
+    if (field === "road") return sign * a.road.localeCompare(b.road);
+    const left = a[field];
+    const right = b[field];
+    // Keep missing values last and preserve the canonical order within ties.
+    if (left == null) return right == null ? 0 : 1;
+    if (right == null) return -1;
+    return sign * (left - right);
+  });
+}
+
 // Competition ranking, matching the team's Excel tool: rank = 1 + the number of
 // rows with a strictly better value, so equal values share the best rank.
-// Display order within a tie: higher V/C first for combined, then segment ID.
+// Display order within a tie: higher V/C first, then segment ID.
 function ranks(
   rows: SegmentResult[],
   value: (r: SegmentResult) => number,
@@ -15,7 +50,7 @@ function ranks(
   rows.sort(
     (a, b) =>
       (ascending ? 1 : -1) * (value(a) - value(b)) ||
-      (field === "combinedRank" ? (b.vc ?? 0) - (a.vc ?? 0) : 0) ||
+      (b.vc ?? -1) - (a.vc ?? -1) ||
       a.id.localeCompare(b.id),
   );
   rows.forEach((r, i) => {

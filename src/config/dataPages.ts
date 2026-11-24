@@ -22,8 +22,7 @@ export const dataPages: DataPage[] = [
     id: "segments",
     title: "Road segments",
     tile: { stat: "segments", label: "Road segments" },
-    whatItIs:
-      "375 road segments covering 54 arterial roads (366 miles) in Norman.",
+    whatItIs: "Segments of Norman’s arterial roads used in the analysis.",
     whereFrom:
       "The City of Norman street centerline map (maps.normanok.gov), which includes lane counts and one-way roads.",
     howUsed: [
@@ -99,7 +98,7 @@ export const dataPages: DataPage[] = [
       stat: "collisionsOnRanked",
       label: "Collisions on ranked segments",
     },
-    whatItIs: "Reported crashes on Norman’s roads, 2016–2026.",
+    whatItIs: "Reported crashes on Norman’s roads.",
     whereFrom: "City of Norman police crash records.",
     howUsed: [
       "Private-property crashes and duplicates are removed. Each crash is placed at its reported intersection, moved by the reported distance and direction. Intersection crashes count for every segment that meets there.",

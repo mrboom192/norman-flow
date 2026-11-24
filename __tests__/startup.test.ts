@@ -3,7 +3,7 @@ import { beforeEach, expect, it, jest } from "@jest/globals";
 jest.mock("../src/store/storage", () => ({
   __esModule: true,
   default: {
-    getItem: async () => null,
+    getItem: jest.fn(async () => null),
     setItem: async () => {},
     removeItem: async () => {},
   },
@@ -161,5 +161,59 @@ it("re-parses a cached base file from an older parser version", async () => {
   baseAssets.push({ name: "base.csv", version: "one", module: 1 });
   await initializeData(jest.fn());
   expect(parseFile).toHaveBeenCalled();
+  await flowStorage.flush();
+});
+
+it("migrates a saved legacy analysis and keeps FY files as source references", async () => {
+  const {
+    initializeData,
+    useFlow,
+    baseAssets,
+    parseFile,
+    file,
+    combine,
+    flowStorage,
+  } = setup();
+  const storage = require("../src/store/storage").default;
+  const fy = file("Traffic Counts FY 21.xlsx");
+  fy.data.traffic.push({
+    id: "count",
+    road: "Main",
+    volume: 30000,
+    source: fy.name,
+    raw: {},
+  });
+  const oldGeometry = file("old roads.geojson");
+  const oldCrashes = file("old crashes.csv");
+  storage.getItem.mockResolvedValueOnce(
+    JSON.stringify({
+      version: 0,
+      state: {
+        files: [oldGeometry, oldCrashes, fy],
+        previous: { files: [oldCrashes] },
+        settings: { matchDistance: 175, laneOverrides: { old: 10 } },
+        ward: 7,
+      },
+    }),
+  );
+  baseAssets.push({ name: "corrected.csv", version: "corrected", module: 1 });
+  parseFile.mockResolvedValue(file("corrected.csv"));
+
+  expect(await initializeData(jest.fn())).toEqual([]);
+  const state = useFlow.getState();
+  expect(state.files.map((f: { name: string }) => f.name)).toEqual([
+    "corrected.csv",
+    fy.name,
+  ]);
+  expect(state.files[1]).toMatchObject({ referenceOnly: true, data: fy.data });
+  expect(combine(state.files).traffic).toEqual([]);
+  expect(state.previous).toBeNull();
+  expect(state.settings).toMatchObject({
+    matchDistance: 175,
+    laneOverrides: {},
+  });
+  expect(state.ward).toBe(7);
+  state.resetMap();
+  expect(useFlow.getState().files).toEqual(state.files);
   await flowStorage.flush();
 });

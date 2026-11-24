@@ -2,7 +2,7 @@
 
 The current distribution is a **prepared segment snapshot**, not the raw workbooks described in the original competition brief. The CSV is authoritative for traffic maxima, audited facility capacity and segment collision totals. The two GeoJSON files provide geometry, stable keys, ward memberships and exclusion reasons. Fields duplicated in the map file are not added to the CSV figures (the GeoJSON `vc` is rounded to 3 decimals and is never used for ranking). These are the official results from the team's Excel tool: the app shows them unchanged, and the ward ranks it derives from the CSV values must equal the CSV's `ward_ranks`, or the import is rejected.
 
-Restart Metro or run an Expo export after changing any base file. To regenerate the checked-in manifest directly, run `node scripts/prepare-base-data.cjs`. Commit the data and manifest together. The build includes these files and startup refreshes changed assets by hash; saved user uploads are retained.
+Restart Metro or run an Expo export after changing any base file. To regenerate the checked-in manifest directly, run `node scripts/prepare-base-data.cjs`. Commit the data and manifest together. Startup refreshes changed assets by hash. The one-time upgrade to the corrected November 24, 2026 export clears superseded saved analysis and preserves standalone FY traffic sources.
 
 Keep the three filenames below. Replace the trio together when geometry, eligibility or keys change. A metrics-only update can replace the CSV if the ranked key set, geometry metadata and statuses still agree. Validate with `npm test`. The legacy 333-segment KMZ is a parser test fixture, not this map.
 
@@ -10,7 +10,7 @@ There are no individual traffic stations, count years, collision case IDs, major
 
 ## Source handoff notes
 
-NORMAN FLOW APP DATA (City of Norman rules, Nov 15 2026) - 119 ranked of 375 segments
+Corrected November 24, 2026 export. There are 119 ranked segments out of 383.
 
 norman_flow_rankings.csv One row per RANKED segment (119). Join key: "key" (e.g. "12TH AVE NE/SE | 04").
 road, from_street, to_street, miles ... where the segment is
@@ -21,7 +21,7 @@ collisions ......... crashes on the segment, 2016-2026
 ward_ranks ......... combined rank inside each ward it touches, e.g. "Ward 4:1; Ward 6:1"
 city_*_rank ........ citywide V/C, collision and combined ranks (lower = higher priority)
 
-norman_segments.geojson All 375 road segments as map lines (lon/lat, WGS84), same as Final_Segments.kmz.
+norman_segments.geojson All 383 road segments as map lines (lon/lat, WGS84).
 Every segment: key, road, segment, from_street, to_street, wards, length_mi, lanes, ranked, status.
 ranked = true -> the ranking fields from the CSV are attached.
 ranked = false -> status says why: no usable count, or a collector road left out per the City (draw gray).
@@ -33,7 +33,8 @@ To update next year: rerun the Colab notebook or the Excel tool, then replace th
 
 ### Crash map layers
 
-`norman_crash_points.geojson` supplies recorded Point features for the map. The
+`norman_crash_points.geojson` supplies 21,153 recorded Point features for the map,
+including 17,981 on study segments. The
 app reads `[longitude, latitude]` and preserves accident, year, date, street,
 cross_street, segment and on_study_segment. These points are a display source;
 they do not replace or add to the published segment collision totals.

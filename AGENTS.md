@@ -438,9 +438,9 @@ default primary. Existing installs using the former default migrate to light pin
 other saved accent choices remain. Use `onPrimary` for text/icons on accent fills
 and `primaryText` for readable accent text on the page background.
 
-### Current bundled analysis (November 16, 2026)
+### Current bundled analysis (November 24, 2026)
 
-The prepared City export supersedes the earlier empty-base and 333-segment release notes. It includes 375 segment lines, 8 ward boundaries and 119 verified summary rows. The earlier KMZ fixture and raw-file pipeline remain supported. Keep the newer Home/Menu design, navigation and palette. The app joins the prepared files by the exact padded `key`, retains the published touched wards, computes ward V/C ranks using full precision (two decimals in the interface), and recomputes collision and combined ranks. Tests compare every published ward rank. Collector roads stay excluded; roads without usable counts stay on the map. Unknown collision totals and lane coverage remain missing. See `assets/data/base/README.md` for upload precedence and how to refresh the snapshot. Raw matching diagnostics exclude the summary CSV.
+The corrected City export includes 383 segment lines, 8 ward boundaries, 119 verified summary rows and 21,153 crash points. The earlier KMZ fixture and advanced raw-file pipeline remain supported. The app joins the prepared files by the exact padded `key`, retains the published touched wards and verifies the ranks using full-precision V/C. Collector roads stay excluded from rankings and roads without usable counts stay on the map. On upgrade, the store clears the superseded analysis and undo history and retains standalone FY traffic files as source references. Rankings can sort either direction in every ward and citywide without changing the published ranks. See `assets/data/base/README.md` for how to refresh the snapshot.
 
 ### Ranking and filter update (November 16, 2026) — superseded
 

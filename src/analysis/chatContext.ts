@@ -26,7 +26,7 @@ export function buildChatContext({
     );
     lines.push(
       "",
-      "RANKED SEGMENTS (key | road | from → to | wards | miles | highest volume vpd | facility | lane source | LOS E capacity | V/C (2 decimals as shown in app) | collisions 2016–2026)",
+      "RANKED SEGMENTS (key | road | from → to | wards | miles | highest volume vpd | facility | lane source | LOS E capacity | V/C (2 decimals as shown in app) | collisions)",
       ...ranked.map((s) =>
         [
           s.id,

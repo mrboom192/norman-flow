@@ -37,7 +37,7 @@ it("preserves bundled metrics and ward memberships with official ranks and expor
     rows = XLSX.utils.sheet_to_json<Record<string, string | number>>(
       book.Sheets[book.SheetNames[0]],
     );
-  expect(inputs.segments).toHaveLength(375);
+  expect(inputs.segments).toHaveLength(383);
   expect(inputs.wards).toHaveLength(8);
   expect(rows).toHaveLength(119);
   expect(inputs.traffic).toHaveLength(0);
@@ -71,7 +71,7 @@ it("preserves bundled metrics and ward memberships with official ranks and expor
   ).toBe(memberships);
   expect(results.official).toBe(true);
   const unranked = results.segments.filter((s) => !s.publishedRanked);
-  expect(unranked).toHaveLength(256);
+  expect(unranked).toHaveLength(264);
   expect(
     unranked.every((s) => s.maxVolume === undefined && s.collisions === null),
   ).toBe(true);
@@ -79,7 +79,7 @@ it("preserves bundled metrics and ward memberships with official ranks and expor
     [rankingsName, segmentLayer, wardLayer].sort(),
   );
   expect(results.segments.reduce((n, s) => n + (s.collisions ?? 0), 0)).toBe(
-    16857,
+    16862,
   );
   const exported = XLSX.read(await exportWorkbook(results), { type: "array" });
   expect(exported.SheetNames.length).toBe(11);

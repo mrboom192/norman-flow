@@ -49,9 +49,9 @@ export const faqs: Faq[] = [
     question: "Why are only some segments ranked?",
     topic: "Rankings",
     keywords:
-      /only some|not ranked|unranked|why.*(119|375)|missing.*rank|left out/i,
+      /only some|not ranked|unranked|why.*segments.*ranked|missing.*rank|left out/i,
     answer:
-      "In the current City data, 119 of 375 segments are ranked. A segment needs a usable traffic count to get a V/C. Segments with no usable count, and collector roads the City asked to leave out, stay on the map but don’t enter the rankings.",
+      "A segment needs a usable traffic count to get a V/C. Segments with no usable count, and collector roads the City asked to leave out, stay on the map but don’t enter the rankings.",
   },
   {
     question: "How is V/C calculated?",
@@ -75,7 +75,7 @@ export const faqs: Faq[] = [
     keywords:
       /which years|years? of (crash|collision)|2016|2026|how (old|recent)|date range/i,
     answer:
-      "Collision totals cover 2016 to 2026. Collisions are counted raw for each segment, not per mile.",
+      "The bundled official results cover 2016 to 2026. Collision totals count crashes per segment.",
   },
   {
     question: "Where does the data come from?",
@@ -83,7 +83,7 @@ export const faqs: Faq[] = [
     keywords:
       /where.*(data|come from)|source|city data|files? (are|is) (included|bundled)/i,
     answer:
-      "The app ships with the official 2026 results from the team’s Excel tool: a rankings table for the 119 ranked segments, map lines for all 375 segments, the 8 City Council ward boundaries, and recorded crash locations. The app shows these values unchanged. To update them, import a new results file from Menu.",
+      "The app ships with the official 2026 results from the team’s Excel tool, including the rankings table, road segments, City Council ward boundaries and recorded crash locations. To update them, import a new results file from Menu.",
   },
   {
     question: "Is my data sent anywhere?",

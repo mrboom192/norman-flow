@@ -28,7 +28,7 @@ export function describeDataset(
   const presetTag = preset
     ? `-WhatIf-${preset.name.replace(/[^\w-]+/g, "-").replace(/^-|-$/g, "")}`
     : "";
-  const uploads = files.filter((f) => f.source !== "base");
+  const uploads = files.filter((f) => f.source !== "base" && !f.referenceOnly);
   const raw = uploads.some(
     (f) => f.data.traffic.length || f.data.collisions.length,
   );

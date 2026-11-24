@@ -50,10 +50,10 @@ const file = (data = emptyInputs(), source = "base", visible = true) => ({
   visible,
 });
 
-it("loads all 21,152 unique observed points in lat/lon order, including off-study crashes", () => {
+it("loads all 21,153 unique observed points in lat/lon order, including off-study crashes", () => {
   const data = readPrepared(bytes(crashLayer), crashLayer);
-  expect(data.crashPoints).toHaveLength(21152);
-  expect(new Set(data.crashPoints!.map((p) => p.id)).size).toBe(21152);
+  expect(data.crashPoints).toHaveLength(21153);
+  expect(new Set(data.crashPoints!.map((p) => p.id)).size).toBe(21153);
   expect(data.crashPoints![0]).toMatchObject({
     id: "2016-00000027",
     point: [35.221158, -97.439919],
@@ -64,9 +64,9 @@ it("loads all 21,152 unique observed points in lat/lon order, including off-stud
   });
   const hotspots = crashClusters(data.crashPoints!);
   expect(hotspots.length).toBeLessThan(data.crashPoints!.length / 4);
-  expect(hotspots.reduce((total, spot) => total + spot.count, 0)).toBe(21152);
+  expect(hotspots.reduce((total, spot) => total + spot.count, 0)).toBe(21153);
   expect(data.collisions).toHaveLength(0);
-  expect(visibleCrashPoints([file(data)])).toHaveLength(21152);
+  expect(visibleCrashPoints([file(data)])).toHaveLength(21153);
 });
 
 it("uses each crash equally without using year, road or study membership as weights", () => {
@@ -111,7 +111,7 @@ it("places markers halfway along bent geometry, rather than halfway between endp
   expect(midpoint[1]).toBeCloseTo(1.5, 3);
 });
 
-it("joins the published top ten exactly, preserving the two labels ranked 2", () => {
+it("joins the published top ten collision ranks to the updated geometry", () => {
   const geometry = readPrepared(bytes(segmentLayer), segmentLayer);
   const rankings = readPrepared(bytes(rankingsName), rankingsName);
   const markers = topSegmentMarkers([file(rankings)], geometry.segments);
@@ -142,7 +142,7 @@ it("does not double-count the map points or change computed rankings", () => {
   const before = runPipeline(combine([file(geometry), file(rankings)]));
   const inputs = combine([file(geometry), file(rankings), file(crashes)]);
   const after = runPipeline(inputs);
-  expect(inputs.crashPoints).toHaveLength(21152);
+  expect(inputs.crashPoints).toHaveLength(21153);
   expect(inputs.collisions).toHaveLength(0);
   expect(after.segments).toEqual(before.segments);
   expect(after.wards).toEqual(before.wards);

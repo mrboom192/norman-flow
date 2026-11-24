@@ -242,19 +242,19 @@ it("D5: button text stays readable (4.5:1) on every accent color", () => {
 it("data pages' draft numbers match the bundled data", () => {
   const stats = computeStats(combine(base), official);
   expect(stats).toMatchObject({
-    segments: "375",
+    segments: "383",
     roads: "54",
-    miles: "366.1",
+    miles: "370.6",
     medianLength: "0.99 mi",
-    standardSegments: "310",
-    shortSegments: "40",
+    standardSegments: "313",
+    shortSegments: "45",
     longSegments: "25",
     rankedSegments: "119",
     wards: "8",
-    crashPoints: "21,152",
-    crashPointsOnSegments: "17,969",
+    crashPoints: "21,153",
+    crashPointsOnSegments: "17,981",
     crashYears: "2016–2026",
-    noCount: "234",
+    noCount: "242",
     collectorRoads: "22",
   });
 });

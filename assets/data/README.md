@@ -2,7 +2,8 @@
 
 Approved raw datasets belong in [`base/`](base/README.md). That guide specifies
 filenames, supported formats, automatic bundling and the base/upload fallback rules.
-The current base is a prepared CSV plus segment and ward GeoJSON. The legacy raw KMZ fixture is not part of this distribution.
+The current base is the corrected November 24, 2026 results CSV and its segment,
+ward and crash-point GeoJSON layers. The legacy raw KMZ is a test fixture.
 
 **Team decision (November 17, 2026): the app displays the official results.**
 The rankings come from the team's macro-enabled Excel tool (or the identical
@@ -17,6 +18,10 @@ with the new traffic and crash data, then use **Add new data & re-rank** to
 import the results file it creates. **Restore official 2026 results** brings the
 bundled files back. Recalculating from raw spreadsheets is only available under
 **Advanced (unofficial)**, because its rules differ from the official tool.
+
+On upgrade to the corrected export, the app clears the previous saved analysis
+and its undo history. Previously imported standalone FY traffic files remain
+listed as source references. The official view uses the volumes in the results CSV.
 
 Do not copy test fixtures into the application. The ACOG capacity PDF in `base/`
 is a reference document, not an analysis input (the base-data script only bundles

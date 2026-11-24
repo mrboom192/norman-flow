@@ -61,12 +61,12 @@ const rank = (ward: number, key: string) => {
   ];
 };
 
-it("1. loads 375 segments (119 ranked, 234 no count, 22 collector) and 8 wards", () => {
-  expect(results.segments).toHaveLength(375);
+it("1. loads 383 segments (119 ranked, 242 no count, 22 collector) and 8 wards", () => {
+  expect(results.segments).toHaveLength(383);
   expect(results.segments.filter((s) => s.publishedRanked)).toHaveLength(119);
   const status = (text: string) =>
     results.segments.filter((s) => s.preparedStatus?.includes(text)).length;
-  expect(status("no usable count")).toBe(234);
+  expect(status("no usable count")).toBe(242);
   expect(status("collector road")).toBe(22);
   expect(combine(base).wards).toHaveLength(8);
 });
@@ -203,8 +203,8 @@ it("7. Restore official 2026 results brings back the bundled data", async () => 
 
 it("8. maps: crash points, ward views and live recoloring after import", async () => {
   const points = combine(base).crashPoints!;
-  expect(points).toHaveLength(21152);
-  expect(points.filter((p) => p.onStudySegment)).toHaveLength(17969);
+  expect(points).toHaveLength(21153);
+  expect(points.filter((p) => p.onStudySegment)).toHaveLength(17981);
 
   const ward7 = rankedRows(results, "combined", 7);
   expect(ward7).toHaveLength(5);

@@ -8,7 +8,12 @@ import {
 } from "lucide-react-native";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Pressable, ScrollView, View } from "react-native";
-import { rankSegments } from "../../analysis/rankings";
+import {
+  rankSegments,
+  sortRankingRows,
+  type RankingSort,
+  type SortDirection,
+} from "../../analysis/rankings";
 import { RankKind } from "../../analysis/types";
 import { DatasetBanner } from "../../components/DatasetBanner";
 import { SegmentRow } from "../../components/SegmentRow";
@@ -21,29 +26,32 @@ import { exportWorkbook } from "../../services/export";
 import { useFlow } from "../../store/useFlow";
 import { fonts, useTheme } from "../../theme";
 
-const sorts = [
-  "Final rank",
-  "V/C ratio",
-  "Collisions",
-  "Traffic volume",
-  "Lanes",
-  "A–Z",
-];
+const sorts: Record<RankingSort, string> = {
+  rank: "Final rank",
+  combinedScore: "Combined score",
+  vc: "V/C ratio",
+  collisions: "Collisions",
+  maxVolume: "Traffic volume",
+  lanes: "Lanes",
+  road: "Road name",
+};
+const sortFields = Object.keys(sorts) as RankingSort[];
+const directions = ["ascending", "descending"] as const;
 const kinds: { key: RankKind; label: string; description: string }[] = [
   {
     key: "combined",
     label: "Combined",
-    description: "V/C rank + collision rank, lowest score first",
+    description: "V/C rank + collision rank",
   },
   {
     key: "vc",
     label: "V/C ratio",
-    description: "Traffic volume ÷ LOS E capacity, highest first",
+    description: "Traffic volume ÷ LOS E capacity",
   },
   {
     key: "collisions",
     label: "Collisions",
-    description: "Crashes on the segment, most first",
+    description: "Crashes on the segment",
   },
 ];
 
@@ -56,9 +64,10 @@ export default function Rankings() {
   const firstTarget = useTourTarget("ranks-first", scroll);
   const [kind, setKind] = useState<RankKind>("combined"),
     [query, setQuery] = useState(""),
-    [sort, setSort] = useState("Final rank"),
+    [sort, setSort] = useState<RankingSort>("rank"),
+    [direction, setDirection] = useState<SortDirection>(),
     [limit, setLimit] = useState(20),
-    [sheet, setSheet] = useState(""),
+    [sheet, setSheet] = useState<"" | "sort" | "direction" | "export">(""),
     [status, setStatus] = useState(""),
     [busy, setBusy] = useState(false),
     [allWards, setAllWards] = useState(false),
@@ -74,7 +83,8 @@ export default function Rankings() {
     setHandledFocus(rankFocus.key);
     setAllWards(false);
     setQuery("");
-    setSort("Final rank");
+    setSort("rank");
+    setDirection(undefined);
     const lists = result.wards[rankFocus.ward];
     const found = ([kind, "combined", "vc", "collisions"] as RankKind[]).find(
       (k) => lists?.[k].some((s) => s.id === rankFocus.id),
@@ -123,21 +133,23 @@ export default function Rankings() {
     [result],
   );
   const kindInfo = kinds.find((k) => k.key === kind)!;
-  const rows = [
-    ...(allWards ? citywide[kind] : (result?.wards[ward]?.[kind] ?? [])),
-  ].filter((s) => s.road.toLowerCase().includes(query.toLowerCase()));
-  if (sort !== "Final rank")
-    rows.sort((a, b) =>
-      sort === "A–Z"
-        ? a.road.localeCompare(b.road)
-        : sort === "V/C ratio"
-          ? (b.vc ?? -1) - (a.vc ?? -1)
-          : sort === "Collisions"
-            ? (b.collisions ?? -1) - (a.collisions ?? -1)
-            : sort === "Traffic volume"
-              ? (b.maxVolume ?? 0) - (a.maxVolume ?? 0)
-              : (b.lanes ?? 0) - (a.lanes ?? 0),
-    );
+  const order =
+    direction ??
+    (sort === "rank" || sort === "road" || sort === "combinedScore"
+      ? "ascending"
+      : "descending");
+  const orderLabels =
+    sort === "road"
+      ? { ascending: "A–Z", descending: "Z–A" }
+      : { ascending: "Lowest to highest", descending: "Highest to lowest" };
+  const rows = sortRankingRows(
+    (allWards ? citywide[kind] : (result?.wards[ward]?.[kind] ?? [])).filter(
+      (s) => s.road.toLowerCase().includes(query.toLowerCase()),
+    ),
+    kind,
+    sort,
+    order,
+  );
   // A new highlight remounts its row so it opens expanded.
   const rowKey = (id: string) =>
     highlight?.id === id ? `${id}:${highlight.key}` : id;
@@ -211,7 +223,7 @@ export default function Rankings() {
                   if (kind === item.key) return;
                   clearFocus();
                   setKind(item.key);
-                  setSort("Final rank");
+                  if (sort === "combinedScore") setSort("rank");
                   setLimit(20);
                 }}
                 style={{
@@ -288,9 +300,14 @@ export default function Rankings() {
             <Row style={{ gap: 10 }}>
               <Dropdown
                 icon={ArrowUpDown}
-                label={sort}
-                accessibilityLabel={`Sort by ${sort}`}
+                label={sorts[sort]}
+                accessibilityLabel={`Sort by ${sorts[sort]}`}
                 onPress={() => setSheet("sort")}
+              />
+              <Dropdown
+                label={orderLabels[order]}
+                accessibilityLabel={`Sort order: ${orderLabels[order]}`}
+                onPress={() => setSheet("direction")}
               />
             </Row>
             <Input
@@ -321,7 +338,6 @@ export default function Rankings() {
           </Row>
           <T muted size={12} style={{ marginTop: 2, marginBottom: 6 }}>
             {kindInfo.description}
-            {sort !== "Final rank" ? ` · sorted by ${sort}` : ""}
           </T>
           {!!notice && (
             <T
@@ -366,7 +382,7 @@ export default function Rankings() {
               body={
                 query
                   ? "Try another road name."
-                  : "Import the raw files to calculate ward rankings. Results will appear here automatically."
+                  : "Import a rankings file to load the ward lists."
               }
               action={() => router.push("/import")}
             />
@@ -421,20 +437,47 @@ export default function Rankings() {
       </Screen>
 
       <Sheet
-        title={sheet === "sort" ? "Sort rankings" : "Export rankings"}
+        title={
+          sheet === "sort"
+            ? "Sort by"
+            : sheet === "direction"
+              ? "Sort order"
+              : "Export rankings"
+        }
         visible={!!sheet}
         onClose={() => setSheet("")}
       >
         {sheet === "sort" ? (
           <View>
-            {sorts.map((s, i) => (
+            {sortFields
+              .filter((s) => s !== "combinedScore" || kind === "combined")
+              .map((s, i) => (
+                <OptionRow
+                  key={s}
+                  label={sorts[s]}
+                  selected={sort === s}
+                  divider={i > 0}
+                  onPress={() => {
+                    clearFocus();
+                    setSort(s);
+                    setLimit(20);
+                    setSheet("");
+                  }}
+                />
+              ))}
+          </View>
+        ) : sheet === "direction" ? (
+          <View>
+            {directions.map((value, i) => (
               <OptionRow
-                key={s}
-                label={s}
-                selected={sort === s}
+                key={value}
+                label={orderLabels[value]}
+                selected={order === value}
                 divider={i > 0}
                 onPress={() => {
-                  setSort(s);
+                  clearFocus();
+                  setDirection(value);
+                  setLimit(20);
                   setSheet("");
                 }}
               />
@@ -485,7 +528,7 @@ function Dropdown({
   accessibilityLabel,
   onPress,
 }: {
-  icon: LucideIcon;
+  icon?: LucideIcon;
   label: string;
   accessibilityLabel: string;
   onPress: () => void;
@@ -511,7 +554,7 @@ function Dropdown({
         opacity: pressed ? 0.7 : 1,
       })}
     >
-      <Icon size={17} color={c.muted} />
+      {Icon && <Icon size={17} color={c.muted} />}
       <T
         size={13}
         numberOfLines={1}

@@ -22,6 +22,8 @@ export type DatasetFile = {
   importedAt?: string;
   /** Parser version that produced `data` (see preparedParserVersion). */
   parserVersion?: number;
+  /** Fiscal-year source retained from the retired analysis. */
+  referenceOnly?: boolean;
   name: string;
   type: string;
   summary: string;
@@ -42,6 +44,7 @@ export function visibleGeometry(files: DatasetFile[]) {
 }
 export function combine(files: DatasetFile[]): Inputs {
   const all = emptyInputs();
+  files = files.filter((f) => !f.referenceOnly);
   const uploads = files.filter((f) => f.source !== "base");
   const hasSegments = uploads.some((f) => f.data.segments.length);
   const hasWards = uploads.some((f) => f.data.wards.length);
@@ -218,7 +221,9 @@ export const useFlow = create<State>()(
       },
       restoreOfficial: () => {
         const state = get();
-        const files = state.files.filter((f) => f.source === "base");
+        const files = state.files.filter(
+          (f) => f.source === "base" || f.referenceOnly,
+        );
         // Lane and capacity overrides would change official values; keep only
         // the match distance, which official results don't use.
         const settings = {
@@ -291,8 +296,42 @@ export const useFlow = create<State>()(
     }),
     {
       name: "norman-flow-v1",
+      version: 1,
       skipHydration: true,
       storage: flowStorage,
+      migrate: (persisted, version) => {
+        const saved = persisted as Partial<SavedState>;
+        if (version !== 0) return saved as SavedState;
+        // The corrected official export supersedes the entire old analysis.
+        // Keep standalone FY traffic inputs as references for the Excel tool.
+        const files = (saved.files ?? [])
+          .filter(
+            (f) =>
+              /(?:^|[^a-z\d])fy[ _-]*(?:20)?\d{2}(?![a-z\d])/i.test(f.name) &&
+              f.data.traffic.length > 0 &&
+              !f.data.segments.length &&
+              !f.data.wards.length &&
+              !f.data.collisions.length &&
+              !f.data.crashPoints &&
+              !f.data.summaries,
+          )
+          .map((f) => ({
+            ...f,
+            source: "uploaded" as const,
+            referenceOnly: true,
+          }));
+        return {
+          ...saved,
+          files,
+          results: null,
+          previous: null,
+          settings: {
+            ...defaultSettings,
+            matchDistance:
+              saved.settings?.matchDistance ?? defaultSettings.matchDistance,
+          },
+        } as SavedState;
+      },
       merge: (persisted, current) => {
         const saved = {
           ...(persisted as Partial<SavedState> & { colorblind?: boolean }),

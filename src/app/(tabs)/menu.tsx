@@ -376,7 +376,7 @@ export default function Menu() {
                           {fileDisplayName(f)}
                         </T>
                         <T muted size={11}>
-                          {f.summary}
+                          {f.referenceOnly ? `${f.summary} · Source reference` : f.summary}
                         </T>
                       </View>
                       {source === "uploaded" && (

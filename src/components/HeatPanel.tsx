@@ -259,7 +259,7 @@ export function HeatPanel({
                     : "N/A"}
                 </T>
                 <T muted size={11}>
-                  {metric === "vc" ? "V/C ratio" : "Collisions 2016–2026"}
+                  {metric === "vc" ? "V/C ratio" : "Collisions"}
                 </T>
                 <T muted size={11}>
                   {range
