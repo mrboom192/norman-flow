@@ -1,3 +1,5 @@
+import { View } from "react-native";
+import { useTourTarget } from "../components/tourTargets";
 import { useState } from "react";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { router } from "expo-router";
@@ -10,19 +12,22 @@ export default function Diagnostics() {
     result = useFlow((s) => s.results),
     [filter, setFilter] = useState("Traffic"),
     [limit, setLimit] = useState(50);
+  const reviewTarget = useTourTarget("diagnostics-review");
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: c.background }}>
       <Screen>
-        <Row>
-          <T heading size={27}>
-            Analysis review
-          </T>
-          <IconButton
-            icon={X}
-            label="Close diagnostics"
-            onPress={() => router.back()}
-          />
-        </Row>
+        <View {...reviewTarget}>
+          <Row>
+            <T heading size={27}>
+              Analysis review
+            </T>
+            <IconButton
+              icon={X}
+              label="Close diagnostics"
+              onPress={() => router.back()}
+            />
+          </Row>
+        </View>
         {result ? (
           <>
             <Card>

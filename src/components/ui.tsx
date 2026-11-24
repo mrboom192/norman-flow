@@ -14,6 +14,7 @@ import {
   ViewStyle,
 } from "react-native";
 import Svg, { Circle, Path, Rect } from "react-native-svg";
+import { desktopContentWidth, useDesktopLayout } from "./desktopLayout";
 import { useFlow } from "../store/useFlow";
 import { fonts, useTheme } from "../theme";
 export function T({
@@ -51,19 +52,31 @@ export function Screen({
   children,
   style,
   scrollRef,
+  wide = false,
+  backgroundColor,
 }: {
   children: React.ReactNode;
   style?: ViewStyle;
   scrollRef?: React.Ref<React.ComponentRef<typeof ScrollView>>;
+  wide?: boolean;
+  backgroundColor?: string;
 }) {
   const c = useTheme();
+  const desktop = useDesktopLayout();
   return (
     <ScrollView
       ref={scrollRef}
       keyboardShouldPersistTaps="handled"
-      style={{ flex: 1, backgroundColor: c.background }}
+      style={{ flex: 1, backgroundColor: backgroundColor ?? c.background }}
       contentContainerStyle={[
         { padding: 20, gap: 16, paddingBottom: 32 },
+        desktop && {
+          width: "100%",
+          maxWidth: wide ? desktopContentWidth : 760,
+          alignSelf: "center",
+          padding: 28,
+          paddingBottom: 36,
+        },
         style,
       ]}
     >

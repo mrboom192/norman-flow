@@ -1,3 +1,7 @@
+import {
+  desktopContentWidth,
+  useDesktopLayout,
+} from "../../components/desktopLayout";
 import { useLocalSearchParams } from "expo-router";
 import {
   ArrowUp,
@@ -39,6 +43,7 @@ const greeting: Message = {
 };
 
 export default function Chat() {
+  const desktop = useDesktopLayout();
   const c = useTheme(),
     results = useFlow((s) => s.results),
     files = useFlow((s) => s.files),
@@ -112,248 +117,290 @@ export default function Chat() {
     }
   }, [params.question]);
 
-  return (
-    <KeyboardAvoidingView
-      style={{ flex: 1, backgroundColor: c.background }}
-      behavior={Platform.OS === "ios" ? "padding" : undefined}
-    >
-      <Row style={{ paddingHorizontal: 20, paddingTop: 20, paddingBottom: 12 }}>
-        <Row style={{ flex: 1, justifyContent: "flex-start", gap: 12 }}>
-          <View
-            style={{
-              height: 44,
-              width: 44,
-              borderRadius: 14,
-              backgroundColor: colors.ink,
-              alignItems: "center",
-              justifyContent: "center",
-            }}
-          >
-            <Bot color={colors.white} size={22} />
-          </View>
-          <View style={{ flex: 1 }}>
-            <Row style={{ justifyContent: "flex-start", gap: 8 }}>
-              <T heading size={28}>
-                Chatbot
-              </T>
-              <View
-                style={{
-                  paddingHorizontal: 8,
-                  paddingVertical: 2,
-                  borderRadius: 999,
-                  backgroundColor: c.primary,
-                }}
-              >
-                <T
-                  size={11}
-                  style={{ fontFamily: fonts.bold, color: c.onPrimary }}
-                >
-                  Beta
-                </T>
-              </View>
-            </Row>
-            <T muted size={12}>
-              AI answers from the data in this analysis
-            </T>
-          </View>
-        </Row>
-        {started && (
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel="Start a new chat"
-            onPress={() => {
-              setMessages([greeting]);
-              setAiUnavailable(false);
-            }}
-            style={({ pressed }) => ({
-              width: 44,
-              height: 44,
-              borderRadius: 22,
-              alignItems: "center",
-              justifyContent: "center",
-              backgroundColor: c.dataSurface,
-              opacity: pressed ? 0.7 : 1,
-            })}
-          >
-            <RotateCcw size={19} color={c.ink} />
-          </Pressable>
-        )}
-      </Row>
-
-      <ScrollView
-        ref={scroll}
-        keyboardShouldPersistTaps="handled"
-        contentContainerStyle={{
-          paddingHorizontal: 20,
-          paddingTop: 4,
-          paddingBottom: 16,
-          gap: 12,
-          flexGrow: 1,
-        }}
-        onContentSizeChange={() =>
-          started && scroll.current?.scrollToEnd({ animated: true })
-        }
-      >
-        {messages.map((m, i) => (
-          <Bubble key={i} message={m} />
-        ))}
-        {thinking && <Thinking />}
-
-        {!started && (
-          <View style={{ gap: 12, marginTop: 8 }}>
-            <Row style={{ justifyContent: "flex-start", gap: 6 }}>
-              <Sparkles size={16} color={c.ink} />
-              <T heading size={17}>
-                From your data
-              </T>
-            </Row>
-            {dataQuestions.map((q) => (
-              <QuestionRow key={q} question={q} onPress={() => send(q)} />
-            ))}
-            <T heading size={17} style={{ marginTop: 8 }}>
-              Common questions
-            </T>
-            <ScrollView
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              contentContainerStyle={{ gap: 6 }}
-            >
-              {faqTopics.map((t) => {
-                const active = t === topic;
-                return (
-                  <Pressable
-                    key={t}
-                    accessibilityRole="button"
-                    accessibilityLabel={`${t} questions`}
-                    accessibilityState={{ selected: active }}
-                    onPress={() => setTopic(t)}
-                    style={{
-                      minHeight: 40,
-                      paddingHorizontal: 14,
-                      borderRadius: 999,
-                      justifyContent: "center",
-                      backgroundColor: active ? c.primary : c.dataSurface,
-                    }}
-                  >
-                    <T
-                      size={13}
-                      style={{
-                        fontFamily: fonts.bold,
-                        color: active ? c.onPrimary : c.muted,
-                      }}
-                    >
-                      {t}
-                    </T>
-                  </Pressable>
-                );
-              })}
-            </ScrollView>
-            <View>
-              {faqs
-                .filter((f) => f.topic === topic)
-                .map((f, i) => (
-                  <QuestionRow
-                    key={f.question}
-                    question={f.question}
-                    divider={i > 0}
-                    flat
-                    onPress={() => send(f.question)}
-                  />
-                ))}
-            </View>
-          </View>
-        )}
-      </ScrollView>
-
-      {aiUnavailable && (
-        <T
-          muted
-          size={12}
-          accessibilityLiveRegion="polite"
-          style={{ paddingHorizontal: 20, paddingBottom: 8 }}
-        >
-          AI unavailable, showing basic answers.
+  const questions = (
+    <View style={{ gap: 12, marginTop: 8 }}>
+      <Row style={{ justifyContent: "flex-start", gap: 6 }}>
+        <Sparkles size={16} color={c.ink} />
+        <T heading size={17}>
+          From your data
         </T>
-      )}
-      {started && nextQuestions.length > 0 && (
-        <ScrollView
-          horizontal
-          keyboardShouldPersistTaps="handled"
-          showsHorizontalScrollIndicator={false}
-          style={{ flexGrow: 0 }}
-          contentContainerStyle={{
-            gap: 8,
-            paddingHorizontal: 20,
-            paddingBottom: 10,
-          }}
-        >
-          {nextQuestions.slice(0, 8).map((q) => (
+      </Row>
+      {dataQuestions.map((q) => (
+        <QuestionRow key={q} question={q} onPress={() => send(q)} />
+      ))}
+      <T heading size={17} style={{ marginTop: 8 }}>
+        Common questions
+      </T>
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        contentContainerStyle={{ gap: 6 }}
+      >
+        {faqTopics.map((t) => {
+          const active = t === topic;
+          return (
             <Pressable
-              key={q}
+              key={t}
               accessibilityRole="button"
-              onPress={() => send(q)}
-              style={({ pressed }) => ({
+              accessibilityLabel={`${t} questions`}
+              accessibilityState={{ selected: active }}
+              onPress={() => setTopic(t)}
+              style={{
                 minHeight: 40,
                 paddingHorizontal: 14,
                 borderRadius: 999,
                 justifyContent: "center",
-                borderWidth: 1,
-                borderColor: c.border,
-                backgroundColor: c.surface,
+                backgroundColor: active ? c.primary : c.dataSurface,
+              }}
+            >
+              <T
+                size={13}
+                style={{
+                  fontFamily: fonts.bold,
+                  color: active ? c.onPrimary : c.muted,
+                }}
+              >
+                {t}
+              </T>
+            </Pressable>
+          );
+        })}
+      </ScrollView>
+      <View>
+        {faqs
+          .filter((f) => f.topic === topic)
+          .map((f, i) => (
+            <QuestionRow
+              key={f.question}
+              question={f.question}
+              divider={i > 0}
+              flat
+              onPress={() => send(f.question)}
+            />
+          ))}
+      </View>
+    </View>
+  );
+
+  return (
+    <KeyboardAvoidingView
+      style={{
+        flex: 1,
+        backgroundColor: c.background,
+        ...(desktop && {
+          flexDirection: "row",
+          width: "100%",
+          maxWidth: desktopContentWidth,
+          alignSelf: "center",
+          padding: 28,
+          gap: 24,
+        }),
+      }}
+      behavior={Platform.OS === "ios" ? "padding" : undefined}
+    >
+      <View
+        style={{
+          flex: 1,
+          minWidth: 0,
+          ...(desktop && {
+            backgroundColor: c.surface,
+            borderRadius: 24,
+            overflow: "hidden",
+          }),
+        }}
+      >
+        <Row
+          style={{ paddingHorizontal: 20, paddingTop: 20, paddingBottom: 12 }}
+        >
+          <Row style={{ flex: 1, justifyContent: "flex-start", gap: 12 }}>
+            <View
+              style={{
+                height: 44,
+                width: 44,
+                borderRadius: 14,
+                backgroundColor: colors.ink,
+                alignItems: "center",
+                justifyContent: "center",
+              }}
+            >
+              <Bot color={colors.white} size={22} />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Row style={{ justifyContent: "flex-start", gap: 8 }}>
+                <T heading size={28}>
+                  Chatbot
+                </T>
+                <View
+                  style={{
+                    paddingHorizontal: 8,
+                    paddingVertical: 2,
+                    borderRadius: 999,
+                    backgroundColor: c.primary,
+                  }}
+                >
+                  <T
+                    size={11}
+                    style={{ fontFamily: fonts.bold, color: c.onPrimary }}
+                  >
+                    Beta
+                  </T>
+                </View>
+              </Row>
+              <T muted size={12}>
+                AI answers from the data in this analysis
+              </T>
+            </View>
+          </Row>
+          {started && (
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Start a new chat"
+              onPress={() => {
+                setMessages([greeting]);
+                setAiUnavailable(false);
+              }}
+              style={({ pressed }) => ({
+                width: 44,
+                height: 44,
+                borderRadius: 22,
+                alignItems: "center",
+                justifyContent: "center",
+                backgroundColor: c.dataSurface,
                 opacity: pressed ? 0.7 : 1,
               })}
             >
-              <T size={12} style={{ fontFamily: fonts.medium }}>
-                {q}
-              </T>
+              <RotateCcw size={19} color={c.ink} />
             </Pressable>
+          )}
+        </Row>
+
+        <ScrollView
+          ref={scroll}
+          keyboardShouldPersistTaps="handled"
+          contentContainerStyle={{
+            paddingHorizontal: 20,
+            paddingTop: 4,
+            paddingBottom: 16,
+            gap: 12,
+            flexGrow: 1,
+          }}
+          onContentSizeChange={() =>
+            started && scroll.current?.scrollToEnd({ animated: true })
+          }
+        >
+          {messages.map((m, i) => (
+            <Bubble key={i} message={m} />
           ))}
+          {thinking && <Thinking />}
+
+          {!desktop && !started && questions}
+        </ScrollView>
+
+        {aiUnavailable && (
+          <T
+            muted
+            size={12}
+            accessibilityLiveRegion="polite"
+            style={{ paddingHorizontal: 20, paddingBottom: 8 }}
+          >
+            AI unavailable, showing basic answers.
+          </T>
+        )}
+        {!desktop && started && nextQuestions.length > 0 && (
+          <ScrollView
+            horizontal
+            keyboardShouldPersistTaps="handled"
+            showsHorizontalScrollIndicator={false}
+            style={{ flexGrow: 0 }}
+            contentContainerStyle={{
+              gap: 8,
+              paddingHorizontal: 20,
+              paddingBottom: 10,
+            }}
+          >
+            {nextQuestions.slice(0, 8).map((q) => (
+              <Pressable
+                key={q}
+                accessibilityRole="button"
+                onPress={() => send(q)}
+                style={({ pressed }) => ({
+                  minHeight: 40,
+                  paddingHorizontal: 14,
+                  borderRadius: 999,
+                  justifyContent: "center",
+                  borderWidth: 1,
+                  borderColor: c.border,
+                  backgroundColor: c.surface,
+                  opacity: pressed ? 0.7 : 1,
+                })}
+              >
+                <T size={12} style={{ fontFamily: fonts.medium }}>
+                  {q}
+                </T>
+              </Pressable>
+            ))}
+          </ScrollView>
+        )}
+
+        <View {...inputTarget}>
+          <Row
+            style={{
+              paddingHorizontal: 16,
+              paddingTop: 10,
+              paddingBottom: 12,
+              gap: 10,
+              borderTopWidth: 1,
+              borderColor: c.divider,
+            }}
+          >
+            <Input
+              value={draft}
+              onChangeText={setDraft}
+              placeholder="Ask about the data…"
+              style={{
+                flex: 1,
+                borderWidth: 0,
+                backgroundColor: c.dataSurface,
+              }}
+              onSubmitEditing={() => send(draft)}
+              returnKeyType="send"
+            />
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Send message"
+              accessibilityState={{ disabled: !draft.trim() }}
+              disabled={!draft.trim()}
+              onPress={() => send(draft)}
+              style={({ pressed }) => ({
+                width: 50,
+                height: 50,
+                borderRadius: 25,
+                alignItems: "center",
+                justifyContent: "center",
+                backgroundColor: draft.trim() ? c.primary : c.dataSurface,
+                opacity: pressed ? 0.75 : 1,
+              })}
+            >
+              <ArrowUp size={21} color={draft.trim() ? c.onPrimary : c.muted} />
+            </Pressable>
+          </Row>
+        </View>
+      </View>
+      {desktop && (
+        <ScrollView
+          style={{
+            width: 320,
+            flexGrow: 0,
+            flexShrink: 0,
+            backgroundColor: c.surface,
+            borderRadius: 24,
+          }}
+          contentContainerStyle={{ padding: 16 }}
+          keyboardShouldPersistTaps="handled"
+        >
+          {questions}
         </ScrollView>
       )}
-
-      <View {...inputTarget}>
-        <Row
-          style={{
-            paddingHorizontal: 16,
-            paddingTop: 10,
-            paddingBottom: 12,
-            gap: 10,
-            borderTopWidth: 1,
-            borderColor: c.divider,
-          }}
-        >
-          <Input
-            value={draft}
-            onChangeText={setDraft}
-            placeholder="Ask about the data…"
-            style={{
-              flex: 1,
-              borderWidth: 0,
-              backgroundColor: c.dataSurface,
-            }}
-            onSubmitEditing={() => send(draft)}
-            returnKeyType="send"
-          />
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel="Send message"
-            accessibilityState={{ disabled: !draft.trim() }}
-            disabled={!draft.trim()}
-            onPress={() => send(draft)}
-            style={({ pressed }) => ({
-              width: 50,
-              height: 50,
-              borderRadius: 25,
-              alignItems: "center",
-              justifyContent: "center",
-              backgroundColor: draft.trim() ? c.primary : c.dataSurface,
-              opacity: pressed ? 0.75 : 1,
-            })}
-          >
-            <ArrowUp size={21} color={draft.trim() ? c.onPrimary : c.muted} />
-          </Pressable>
-        </Row>
-      </View>
     </KeyboardAvoidingView>
   );
 }

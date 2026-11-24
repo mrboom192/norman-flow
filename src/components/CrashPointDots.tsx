@@ -15,26 +15,24 @@ export const MapViewport = createContext({
 export function CrashPointDots({
   points,
   project,
-  midLat,
-  midLon,
-  latScale,
-  lonScale,
+  unproject,
 }: {
   points: CrashPoint[];
   project: (point: number[]) => string;
-  midLat: number;
-  midLon: number;
-  latScale: number;
-  lonScale: number;
+  unproject: (x: number, y: number) => { lat: number; lng: number };
 }) {
   const c = useTheme();
   const view = useContext(MapViewport);
   const index = useMemo(() => createCrashLocationIndex(points), [points]);
+  const halfWidth = (view.width * view.unitsPerPixel) / 2;
+  const halfHeight = (view.height * view.unitsPerPixel) / 2;
+  const northwest = unproject(view.x - halfWidth, view.y - halfHeight);
+  const southeast = unproject(view.x + halfWidth, view.y + halfHeight);
   const sites = index({
-    latitude: midLat - (view.y - 180) / latScale,
-    longitude: midLon + (view.x - 180) / lonScale,
-    latitudeDelta: (view.height * view.unitsPerPixel) / latScale,
-    longitudeDelta: (view.width * view.unitsPerPixel) / lonScale,
+    latitude: (northwest.lat + southeast.lat) / 2,
+    longitude: (northwest.lng + southeast.lng) / 2,
+    latitudeDelta: northwest.lat - southeast.lat,
+    longitudeDelta: southeast.lng - northwest.lng,
     width: view.width,
     height: view.height,
   });

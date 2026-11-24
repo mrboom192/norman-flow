@@ -1,97 +1,112 @@
 import { useRef, useState } from "react";
-import { View, Pressable } from "react-native";
+import { View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { router } from "expo-router";
-import { Play } from "lucide-react-native";
+import { Compass, Map, Play } from "lucide-react-native";
 import { Button, Card, Logo, Row, Screen, T } from "../components/ui";
 import { Sheet } from "../components/Sheet";
+import { useDesktopLayout } from "../components/desktopLayout";
+import { tourSteps, type TourMode } from "../config/tours";
 import { useFlow } from "../store/useFlow";
 import { useTheme } from "../theme";
+
 export default function Welcome() {
-  const c = useTheme(),
-    set = useFlow((s) => s.set),
-    [sheet, setSheet] = useState("");
-  const pendingFinish = useRef<boolean | null>(null);
-  function finish(tour: boolean) {
-    if (sheet) {
-      pendingFinish.current = tour;
-      setSheet("");
-      return;
-    }
-    completeWelcome(tour);
-  }
-  function completeWelcome(tour: boolean) {
-    set({ welcomeSeen: true, tour: tour ? 0 : null });
-    // Return to the existing Home (replay from Home or Menu) instead of stacking
-    // a second tabs navigator, which would mount Home and its tour twice.
+  const c = useTheme();
+  const desktop = useDesktopLayout();
+  const [sheet, setSheet] = useState<"skip" | "video" | null>(null);
+  const skipPending = useRef(false);
+
+  function finish(mode?: TourMode) {
+    useFlow.getState().set({
+      welcomeSeen: true,
+      tour: mode ? { mode, step: 0 } : null,
+    });
     router.dismissTo("/");
   }
+
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: c.background }}>
-      <Screen style={{ padding: 24, paddingTop: 48, gap: 24 }}>
-        <View style={{ alignItems: "center", gap: 14 }}>
-          <Logo size={96} />
-          <T heading size={32} style={{ textAlign: "center" }}>
-            Welcome to{"\n"}Norman Flow
+      <Screen style={{ padding: 24, paddingTop: desktop ? 48 : 32, gap: 24 }}>
+        <View style={{ alignItems: "center", gap: 10 }}>
+          <Logo size={76} />
+          <T heading size={34} style={{ textAlign: "center" }}>
+            Welcome to Norman Flow
           </T>
-          <T muted size={15} style={{ textAlign: "center", maxWidth: 300 }}>
-            See which Norman road segments rank highest for traffic load and
+          <T
+            muted
+            size={15}
+            style={{ textAlign: "center", maxWidth: 430, lineHeight: 22 }}
+          >
+            Explore how Norman’s road segments rank for traffic load and
             collisions, ward by ward.
           </T>
         </View>
-        <Card style={{ alignItems: "center", padding: 8, gap: 8 }}>
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel="Play walkthrough"
-            onPress={() => setSheet("video")}
-            style={{
-              width: 64,
-              height: 64,
-              borderRadius: 32,
-              backgroundColor: c.primary,
-              alignItems: "center",
-              justifyContent: "center",
-            }}
-          >
-            <Play size={24} color={c.onPrimary} fill={c.onPrimary} />
-          </Pressable>
-          <T heading size={20}>
-            How to use the app
-          </T>
-          <T muted size={13}>
-            Video walkthrough · coming soon
-          </T>
-        </Card>
+
         <View style={{ gap: 12 }}>
-          {[
-            "Pick a ward on Rankings to see its segments",
-            "Tap a segment for its V/C and collision details",
-            "Upload new counts to re-run the rankings",
-          ].map((step, i) => (
-            <Row key={step} style={{ justifyContent: "flex-start" }}>
-              <View
+          <T heading size={22}>
+            Choose a tour
+          </T>
+          <View style={{ gap: 12, flexDirection: desktop ? "row" : "column" }}>
+            {(
+              [
+                {
+                  mode: "short",
+                  label: "Short tour",
+                  description:
+                    "Find a road, read its ranking, ask a question and see where to update the data.",
+                  icon: Compass,
+                },
+                {
+                  mode: "detailed",
+                  label: "Detailed tour",
+                  description:
+                    "Walk through the maps, heat layers, all ranking views, exports, imports, diagnostics and settings.",
+                  icon: Map,
+                },
+              ] as const
+            ).map(({ mode, label, description, icon: Icon }) => (
+              <Card
+                key={mode}
                 style={{
-                  height: 32,
-                  width: 32,
-                  borderRadius: 16,
-                  backgroundColor: c.primaryTint,
-                  alignItems: "center",
-                  justifyContent: "center",
+                  borderWidth: 1,
+                  borderColor: c.border,
+                  ...(desktop && { flex: 1 }),
                 }}
               >
-                <T style={{ color: c.primaryText }}>{i + 1}</T>
-              </View>
-              <T size={14} style={{ flex: 1 }}>
-                {step}
-              </T>
-            </Row>
-          ))}
+                <Row>
+                  <Row style={{ justifyContent: "flex-start", gap: 8 }}>
+                    <Icon color={c.primaryText} size={21} />
+                    <T heading size={19}>
+                      {label}
+                    </T>
+                  </Row>
+                  <T muted size={12}>
+                    {tourSteps[mode].length} stops
+                  </T>
+                </Row>
+                <T
+                  muted
+                  size={14}
+                  style={{ lineHeight: 20, ...(desktop && { flex: 1 }) }}
+                >
+                  {description}
+                </T>
+                <Button
+                  label={`Start ${label.toLowerCase()}`}
+                  outline={mode === "short"}
+                  onPress={() => finish(mode)}
+                />
+              </Card>
+            ))}
+          </View>
         </View>
-        <View style={{ gap: 12, marginTop: 18 }}>
+
+        <View style={{ gap: 10 }}>
           <Button
-            label="Start the tour"
-            onPress={() => finish(true)}
-            style={{ height: 52 }}
+            label="Video walkthrough"
+            icon={Play}
+            outline
+            onPress={() => setSheet("video")}
           />
           <Button
             label="Skip for now"
@@ -99,42 +114,40 @@ export default function Welcome() {
             onPress={() => setSheet("skip")}
             style={{ borderWidth: 0 }}
           />
+          <T muted size={12} style={{ textAlign: "center" }}>
+            Start either tour later from Home’s help button or Menu’s Replay
+            tutorial.
+          </T>
         </View>
-        <T muted size={12} style={{ textAlign: "center" }}>
-          You can replay the tour anytime from the ? button.
-        </T>
       </Screen>
       <Sheet
-        title={sheet === "skip" ? "Are you sure?" : "Walkthrough coming soon"}
-        visible={!!sheet}
-        onClose={() => setSheet("")}
+        title={sheet === "video" ? "Video walkthrough" : "Skip the tour?"}
+        visible={sheet !== null}
+        onClose={() => setSheet(null)}
         onDismiss={() => {
-          const tour = pendingFinish.current;
-          pendingFinish.current = null;
-          if (tour !== null) completeWelcome(tour);
+          if (!skipPending.current) return;
+          skipPending.current = false;
+          finish();
         }}
       >
-        {sheet === "skip" ? (
-          <>
-            <T muted>
-              You can revisit the tutorial from Home or Menu whenever you like.
-            </T>
-            <Button label="Yes, go to Home" onPress={() => finish(false)} />
-            <Button
-              outline
-              label="Take the tour"
-              onPress={() => finish(true)}
-            />
-          </>
+        {sheet === "video" ? (
+          <T muted>
+            The video walkthrough is coming soon. Both guided tours are
+            available now.
+          </T>
         ) : (
           <>
-            <T muted>
-              The team is preparing the walkthrough video. You can use the
-              guided tour today.
-            </T>
-            <Button label="Start the tour" onPress={() => finish(true)} />
+            <T muted>You can take either tour later from Home or Menu.</T>
+            <Button
+              label="Go to Home"
+              onPress={() => {
+                skipPending.current = true;
+                setSheet(null);
+              }}
+            />
           </>
         )}
+        <Button outline label="Choose a tour" onPress={() => setSheet(null)} />
       </Sheet>
     </SafeAreaView>
   );

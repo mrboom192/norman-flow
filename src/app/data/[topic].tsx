@@ -1,10 +1,11 @@
 import { router, useLocalSearchParams } from "expo-router";
 import { FileText, X } from "lucide-react-native";
-import { useMemo, useState } from "react";
-import { View } from "react-native";
+import { useMemo, useRef, useState } from "react";
+import { ScrollView, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { computeStats } from "../../analysis/dataStats";
 import { Button, IconButton, Row, Screen, T } from "../../components/ui";
+import { useTourTarget } from "../../components/tourTargets";
 import { dataPages } from "../../config/dataPages";
 import {
   acogPdf,
@@ -14,6 +15,10 @@ import {
 import { combine, useFlow } from "../../store/useFlow";
 import { fonts, useTheme } from "../../theme";
 
+export function generateStaticParams() {
+  return dataPages.map(({ id }) => ({ topic: id }));
+}
+
 /** A "Data in this analysis" detail page; wording lives in src/config/dataPages.ts. */
 export default function DataPage() {
   const c = useTheme(),
@@ -21,6 +26,8 @@ export default function DataPage() {
     files = useFlow((s) => s.files),
     results = useFlow((s) => s.results),
     [message, setMessage] = useState("");
+  const scroll = useRef<React.ComponentRef<typeof ScrollView>>(null);
+  const sourceTarget = useTourTarget("data-source", scroll);
   const page = dataPages.find((p) => p.id === topic);
   const stats = useMemo(
     () => computeStats(combine(files), results),
@@ -46,7 +53,7 @@ export default function DataPage() {
   ];
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: c.background }}>
-      <Screen style={{ gap: 22 }}>
+      <Screen scrollRef={scroll} style={{ gap: 22 }}>
         <Row>
           <T heading size={27} style={{ flex: 1 }}>
             {page.title}
@@ -54,7 +61,11 @@ export default function DataPage() {
           <IconButton icon={X} label="Close" onPress={close} />
         </Row>
         {sections.map(([title, paragraphs]) => (
-          <View key={title} style={{ gap: 6 }}>
+          <View
+            key={title}
+            {...(title === "Where it came from" ? sourceTarget : {})}
+            style={{ gap: 6 }}
+          >
             <T heading size={18}>
               {title}
             </T>

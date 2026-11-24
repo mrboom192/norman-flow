@@ -5,18 +5,29 @@ type TargetView = React.ComponentRef<typeof View>;
 type ScrollRef = RefObject<React.ComponentRef<typeof ScrollView> | null>;
 
 // Screens register the views the coach-mark tour highlights. The tour lives in
-// the tab layout, so it can switch tabs and then find each target here.
+// the root layout, so it can follow the tour between tabs and other routes.
 export type TourTargetId =
   | "home-map"
   | "home-data"
+  | "data-source"
+  | "ranks-metrics"
+  | "ranks-sort"
+  | "ranks-export"
   | "ranks-wards"
   | "ranks-first"
   | "chat-input"
-  | "menu-data";
+  | "menu-data"
+  | "menu-appearance"
+  | "map-search"
+  | "map-modes"
+  | "map-summary"
+  | "map-tools"
+  | "import-files"
+  | "diagnostics-review";
 
 type Target = {
   view: TargetView | null;
-  /** Offset within the screen's scroll content (targets are direct children). */
+  /** Fallback offset if the scroll content cannot be measured. */
   y: number;
   scroll?: ScrollRef;
 };
@@ -39,7 +50,7 @@ export function useTourTarget(id: TourTargetId, scroll?: ScrollRef) {
     },
     [id],
   );
-  return { ref, onLayout };
+  return { ref, onLayout, collapsable: false as const };
 }
 
 export function getTourTarget(id: TourTargetId) {

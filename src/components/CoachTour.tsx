@@ -1,131 +1,129 @@
-import { type Href, router } from "expo-router";
+import { router, usePathname } from "expo-router";
+import { X } from "lucide-react-native";
 import { useEffect, useState } from "react";
-import { Modal, View, useWindowDimensions } from "react-native";
+import { Modal, ScrollView, View, useWindowDimensions } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { type ActiveTour, getTourStep, tourSteps } from "../config/tours";
 import { useFlow } from "../store/useFlow";
 import { useTheme } from "../theme";
-import { getTourTarget, type TourTargetId } from "./tourTargets";
-import { Button, Card, Row, T } from "./ui";
+import { getTourTarget } from "./tourTargets";
+import { Button, Card, IconButton, Row, T } from "./ui";
 
 type Bounds = { x: number; y: number; width: number; height: number };
-const tourSteps: {
-  route: Href;
-  target: TourTargetId;
-  title: string;
-  body: string;
-}[] = [
-  {
-    route: "/",
-    target: "home-map",
-    title: "Explore the map",
-    body: "Open the full map to search roads, switch to Heat for V/C or crash density, and tap any road for its details.",
-  },
-  {
-    route: "/",
-    target: "home-data",
-    title: "Explore your analysis data",
-    body: "See what data is loaded and when it was last ranked. Tap a data tile for details, or review the analysis diagnostics.",
-  },
-  {
-    route: "/ranks",
-    target: "ranks-wards",
-    title: "Choose a ward",
-    body: "Pick one of Norman’s 8 wards, or All for citywide. Use the dropdowns to switch between Combined, V/C and Collisions, or change the sort.",
-  },
-  {
-    route: "/ranks",
-    target: "ranks-first",
-    title: "Look inside a ranking",
-    body: "Gold, silver and bronze mark the top three. Tap a segment to see its V/C ratio, collisions, traffic and capacity, or show it on the map.",
-  },
-  {
-    route: "/chat",
-    target: "chat-input",
-    title: "Ask about the data",
-    body: "Ask how the rankings work, where the data comes from, or what’s #1 in a ward. Answers come offline from this app.",
-  },
-  {
-    route: "/menu",
-    target: "menu-data",
-    title: "Files and settings",
-    body: "Use Add new data & re-rank to import results, preview changes, then confirm. Manage files and analysis settings, change the appearance, or replay this tour anytime.",
-  },
-];
 
-/** Coach-mark tour across the tabs. Rendered once, in the tab layout. */
 export function CoachTour() {
-  const step = useFlow((s) => s.tour),
-    set = useFlow((s) => s.set),
-    c = useTheme(),
-    { height, width } = useWindowDimensions(),
-    // Keyed by step so a new step never shows the previous step's highlight.
-    [found, setFound] = useState<{
-      step: number;
-      bounds: Bounds | null;
-    } | null>(null);
+  const tour = useFlow((s) => s.tour);
+  const pathname = usePathname();
+  const current = getTourStep(tour);
+
   useEffect(() => {
-    if (step === null) return;
-    const { route, target } = tourSteps[step];
-    router.navigate(route);
-    let cancelled = false,
-      tries = 0;
+    // Let Welcome finish dismissing before navigating to the first stop.
+    if (current && pathname !== "/welcome" && pathname !== current.route)
+      router.navigate(current.route);
+  }, [current, pathname]);
+
+  if (!tour || !current || pathname !== current.route) return null;
+
+  function finish() {
+    useFlow.getState().set({ tour: null });
+    if (pathname !== "/") router.navigate("/");
+  }
+
+  return (
+    <TourCallout key={`${tour.mode}:${tour.step}`} tour={tour} onEnd={finish} />
+  );
+}
+
+function TourCallout({ tour, onEnd }: { tour: ActiveTour; onEnd: () => void }) {
+  const { mode, step } = tour;
+  const steps = tourSteps[mode];
+  const current = steps[step];
+  const c = useTheme();
+  const { height, width } = useWindowDimensions();
+  const insets = useSafeAreaInsets();
+  const [bounds, setBounds] = useState<Bounds | null>();
+  const [cardHeight, setCardHeight] = useState(250);
+
+  useEffect(() => {
     const timers: ReturnType<typeof setTimeout>[] = [];
-    const attempt = () => {
-      if (cancelled) return;
-      const t = getTourTarget(target);
-      if (!t?.view) {
-        // The tab may still be mounting; give up after ~2 s and show the card alone.
-        if (++tries > 20) setFound({ step, bounds: null });
-        else timers.push(setTimeout(attempt, 100));
-        return;
-      }
-      t.scroll?.current?.scrollTo({
-        y: Math.max(0, t.y - 100),
-        animated: true,
-      });
-      timers.push(
-        setTimeout(
-          () =>
-            t.view?.measureInWindow((x, y, w, h) => {
-              if (!cancelled)
-                setFound({
-                  step,
-                  bounds: w && h ? { x, y, width: w, height: h } : null,
-                });
-            }),
-          400,
-        ),
+    let cancelled = false;
+    const later = (callback: () => void, delay: number) =>
+      timers.push(setTimeout(callback, delay));
+    const measure = () => {
+      getTourTarget(current.target)?.view?.measureInWindow(
+        (x, y, width, height) => {
+          if (!cancelled)
+            setBounds(width && height ? { x, y, width, height } : null);
+        },
       );
     };
-    timers.push(setTimeout(attempt, 150));
+    let tries = 0;
+    const find = () => {
+      const target = getTourTarget(current.target);
+      if (!target?.view) {
+        if (++tries < 12) later(find, 100);
+        return;
+      }
+      const scroll = target.scroll?.current;
+      const scrollTo = (y: number) => {
+        if (cancelled) return;
+        scroll?.scrollTo({ y: Math.max(0, y - 32), animated: false });
+        later(measure, 100);
+      };
+      const content = scroll?.getInnerViewRef();
+      if (content) {
+        target.view.measureLayout(
+          content,
+          (_x, y) => scrollTo(y),
+          () => scrollTo(target.y),
+        );
+      } else {
+        measure();
+      }
+    };
+    later(find, 260);
+    later(() => setBounds((value) => value ?? null), 1700);
     return () => {
       cancelled = true;
       timers.forEach(clearTimeout);
     };
-  }, [step]);
-  if (step === null || found?.step !== step) return null;
-  const finish = () => {
-    set({ tour: null });
-    router.navigate("/");
-  };
-  const last = step === tourSteps.length - 1;
-  const bounds = found.bounds;
+  }, [current.target, height, width]);
+
+  if (bounds === undefined) return null;
+  const last = step === steps.length - 1;
+  const go = (step: number) => useFlow.getState().set({ tour: { mode, step } });
   const shade = "rgba(24,12,20,0.68)";
-  const calloutWidth = Math.min(width - 32, 350);
-  let calloutTop = (height - 230) / 2,
-    calloutLeft = (width - calloutWidth) / 2,
-    hole: { top: number; bottom: number; left: number; right: number } | null =
-      null;
+  const calloutWidth = Math.min(width - 32, 410);
+  const topLimit = insets.top + 12;
+  const bottomLimit = Math.max(
+    topLimit,
+    height - insets.bottom - 12 - cardHeight,
+  );
+  let calloutTop = (topLimit + bottomLimit) / 2;
+  let calloutLeft = (width - calloutWidth) / 2;
+  let hole: {
+    top: number;
+    bottom: number;
+    left: number;
+    right: number;
+  } | null = null;
+
   if (bounds) {
-    const top = Math.max(0, bounds.y),
-      bottom = Math.min(height, top + bounds.height),
-      left = Math.max(0, bounds.x),
-      right = Math.min(width, left + bounds.width);
-    hole = { top, bottom, left, right };
-    calloutLeft = Math.max(16, Math.min(left, width - calloutWidth - 16));
-    calloutTop = bottom + 230 < height ? bottom + 12 : Math.max(16, top - 242);
+    const top = Math.max(0, bounds.y);
+    const bottom = Math.min(height, bounds.y + bounds.height);
+    const left = Math.max(0, bounds.x);
+    const right = Math.min(width, bounds.x + bounds.width);
+    if (bottom > top && right > left) {
+      hole = { top, bottom, left, right };
+      calloutLeft = Math.max(16, Math.min(left, width - calloutWidth - 16));
+      if (bottom + 12 <= bottomLimit) calloutTop = bottom + 12;
+      else if (top - cardHeight - 12 >= topLimit)
+        calloutTop = top - cardHeight - 12;
+      else calloutTop = top > height - bottom ? topLimit : bottomLimit;
+    }
   }
   return (
-    <Modal transparent visible animationType="fade" onRequestClose={finish}>
+    <Modal transparent visible onRequestClose={onEnd}>
       <View style={{ flex: 1 }}>
         {hole ? (
           <>
@@ -191,34 +189,53 @@ export function CoachTour() {
             top: calloutTop,
             left: calloutLeft,
             width: calloutWidth,
-            gap: 12,
+            padding: 16,
+            gap: 8,
           }}
         >
-          <T heading size={20}>
-            {tourSteps[step].title}
-          </T>
-          <T muted size={13}>
-            {tourSteps[step].body}
-          </T>
-          <Row>
-            <T muted size={12}>
-              {step + 1} of {tourSteps.length}
+          <View
+            onLayout={({ nativeEvent }) =>
+              setCardHeight(nativeEvent.layout.height + 32)
+            }
+            style={{ gap: 10 }}
+          >
+            <Row>
+              <T muted size={12}>
+                {mode === "short" ? "Short tour" : "Detailed tour"} · {step + 1}{" "}
+                of {steps.length}
+              </T>
+              <IconButton icon={X} label="End tour" onPress={onEnd} />
+            </Row>
+            <T
+              heading
+              size={21}
+              accessibilityRole="header"
+              accessibilityLiveRegion="polite"
+            >
+              {current.title}
             </T>
-            <Row style={{ gap: 8 }}>
+            <ScrollView
+              style={{
+                maxHeight: Math.max(
+                  60,
+                  height - insets.top - insets.bottom - 200,
+                ),
+              }}
+            >
+              <T size={14} style={{ lineHeight: 21 }}>
+                {current.body}
+              </T>
+            </ScrollView>
+            <Row style={{ justifyContent: "flex-end" }}>
               {step > 0 && (
-                <Button
-                  outline
-                  label="Back"
-                  onPress={() => set({ tour: step - 1 })}
-                />
+                <Button outline label="Back" onPress={() => go(step - 1)} />
               )}
               <Button
                 label={last ? "Finish tour" : "Next"}
-                onPress={() => (last ? finish() : set({ tour: step + 1 }))}
+                onPress={last ? onEnd : () => go(step + 1)}
               />
             </Row>
-          </Row>
-          {!last && <Button label="End tour" outline onPress={finish} />}
+          </View>
         </Card>
       </View>
     </Modal>

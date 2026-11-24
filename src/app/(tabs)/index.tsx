@@ -19,6 +19,7 @@ import { computeStats } from "../../analysis/dataStats";
 import { DataStatCard } from "../../components/DataStatCard";
 import { dataPages } from "../../config/dataPages";
 import { DatasetBanner } from "../../components/DatasetBanner";
+import { useDesktopLayout } from "../../components/desktopLayout";
 import { MapPreviewCard } from "../../components/MapPreviewCard";
 import { useDatasetLabel } from "../../components/OfficialNote";
 import { useTourTarget } from "../../components/tourTargets";
@@ -27,6 +28,7 @@ import { combine, useFlow } from "../../store/useFlow";
 import { colors, fonts, useTheme } from "../../theme";
 
 export default function Home() {
+  const desktop = useDesktopLayout();
   const state = useFlow(),
     data = useMemo(() => combine(state.files), [state.files]);
   const dataset = useDatasetLabel();
@@ -38,15 +40,73 @@ export default function Home() {
     [data, state.results],
   );
 
-  return (
-    <Screen scrollRef={scroll} style={{ gap: 26 }}>
-      <Row>
-        <Row style={{ justifyContent: "flex-start", gap: 10 }}>
-          <Logo />
-          <T heading size={23}>
-            Norman Flow
-          </T>
+  const map = (
+    <View
+      {...mapTarget}
+      style={desktop ? { flex: 1.3, minWidth: 0 } : undefined}
+    >
+      <MapPreviewCard />
+    </View>
+  );
+  const analysis = (
+    <View
+      {...dataTarget}
+      style={{ gap: 12, ...(desktop && { flex: 1, minWidth: 0 }) }}
+    >
+      <SectionHeader
+        title="Data in this analysis"
+        subtitle={`${dataset.label} · updated ${
+          state.results?.runAt
+            ? new Date(state.results.runAt).toLocaleDateString()
+            : "N/A"
+        }`}
+      />
+      {/* Each tile opens its detail page (wording in src/config/dataPages.ts). */}
+      {[0, 2, 4].map((start) => (
+        <Row key={start} style={{ alignItems: "stretch", gap: 12 }}>
+          {dataPages.slice(start, start + 2).map((page) => (
+            <DataStatCard
+              key={page.id}
+              icon={tileIcons[page.id] ?? Route}
+              value={stats[page.tile.stat] ?? "N/A"}
+              label={page.tile.label}
+              backgroundColor={tileColors[page.id] ?? colors.dataSurface}
+              onPress={() =>
+                router.push({
+                  pathname: "/data/[topic]",
+                  params: { topic: page.id },
+                })
+              }
+            />
+          ))}
         </Row>
+      ))}
+      {state.results && (
+        <ActionRow
+          icon={Stethoscope}
+          title="Review analysis diagnostics"
+          subtitle="Matched and unmatched records, lane checks"
+          onPress={() => router.push("/diagnostics")}
+        />
+      )}
+    </View>
+  );
+
+  return (
+    <Screen wide scrollRef={scroll} style={{ gap: 26 }}>
+      <Row>
+        {desktop ? (
+          <T heading size={34}>
+            Overview
+          </T>
+        ) : (
+          <Row style={{ justifyContent: "flex-start", gap: 10 }}>
+            <Logo />
+            <T heading size={23}>
+              Norman Flow
+            </T>
+          </Row>
+        )}
         <RoundButton
           icon={CircleHelp}
           label="How to use the app"
@@ -54,49 +114,19 @@ export default function Home() {
         />
       </Row>
       <DatasetBanner style={{ marginTop: -12 }} />
-
-      <View {...mapTarget}>
-        <MapPreviewCard />
-      </View>
-
-      <View {...dataTarget} style={{ gap: 12 }}>
-        <SectionHeader
-          title="Data in this analysis"
-          subtitle={`${dataset.label} · updated ${
-            state.results?.runAt
-              ? new Date(state.results.runAt).toLocaleDateString()
-              : "N/A"
-          }`}
-        />
-        {/* Each tile opens its detail page (wording in src/config/dataPages.ts). */}
-        {[0, 2, 4].map((start) => (
-          <Row key={start} style={{ alignItems: "stretch", gap: 12 }}>
-            {dataPages.slice(start, start + 2).map((page) => (
-              <DataStatCard
-                key={page.id}
-                icon={tileIcons[page.id] ?? Route}
-                value={stats[page.tile.stat] ?? "N/A"}
-                label={page.tile.label}
-                backgroundColor={tileColors[page.id] ?? colors.dataSurface}
-                onPress={() =>
-                  router.push({
-                    pathname: "/data/[topic]",
-                    params: { topic: page.id },
-                  })
-                }
-              />
-            ))}
-          </Row>
-        ))}
-        {state.results && (
-          <ActionRow
-            icon={Stethoscope}
-            title="Review analysis diagnostics"
-            subtitle="Matched and unmatched records, lane checks"
-            onPress={() => router.push("/diagnostics")}
-          />
-        )}
-      </View>
+      {desktop ? (
+        <View
+          style={{ flexDirection: "row", gap: 24, alignItems: "flex-start" }}
+        >
+          {map}
+          {analysis}
+        </View>
+      ) : (
+        <>
+          {map}
+          {analysis}
+        </>
+      )}
 
       <View
         style={{

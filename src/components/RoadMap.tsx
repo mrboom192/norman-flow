@@ -5,11 +5,19 @@ import {
   type ReactNode,
   useRef,
   useEffect,
+  useCallback,
   useState,
   useMemo,
 } from "react";
 import { topSegmentMarkers, visibleCrashPoints } from "../analysis/crashMap";
 import { CrashDensity } from "./CrashDensity";
+import { defaultMapLayerOrder } from "../analysis/mapLayers";
+import { fromMercator, mercator } from "../analysis/mapProjection";
+import {
+  GoogleBasemap,
+  googleMapsWebKey,
+  type BasemapStatus,
+} from "./GoogleBasemap";
 import {
   type MapMetric,
   rankBadges,
@@ -47,16 +55,31 @@ function MapSurface({
   preview,
   zoom,
   focus,
+  projection,
+  satellite,
+  onBasemapStatus,
+  onZoomTo,
+  resetKey,
 }: {
   children: ReactNode;
   preview: boolean;
   zoom: number;
   focus?: Focus;
+  projection: { x: number; y: number; scale: number };
+  satellite: boolean;
+  onBasemapStatus: (status: BasemapStatus) => void;
+  onZoomTo?: (zoom: number) => void;
+  resetKey: number;
 }) {
   const [center, setCenter] = useState({ x: 0, y: 0 });
   const surface = useRef<HTMLDivElement>(null);
   const [size, setSize] = useState({ width: 360, height: 360 });
   const [lastFocus, setLastFocus] = useState(focus);
+  const [lastReset, setLastReset] = useState(resetKey);
+  if (resetKey !== lastReset) {
+    setLastReset(resetKey);
+    setCenter({ x: 0, y: 0 });
+  }
   if (focus !== lastFocus) {
     setLastFocus(focus);
     // Place the focused road in the upper part of the map, above the details sheet.
@@ -72,14 +95,14 @@ function MapSurface({
   }
   useEffect(() => {
     const element = surface.current;
-    if (!element || preview) return;
+    if (!element) return;
     const observer = new ResizeObserver(([entry]) => {
       const { width, height } = entry.contentRect;
       if (width && height) setSize({ width, height });
     });
     observer.observe(element);
     return () => observer.disconnect();
-  }, [preview]);
+  }, []);
   const drag = useRef<{
     id: number;
     x: number;
@@ -87,72 +110,132 @@ function MapSurface({
     moved: boolean;
   } | null>(null);
   const dragged = useRef(false);
+  const [basemapStatus, setBasemapStatus] =
+    useState<BasemapStatus>("unavailable");
+  const hasBasemap = Boolean(googleMapsWebKey);
+  const showAttribution = hasBasemap && basemapStatus === "ready";
+  useEffect(() => {
+    onBasemapStatus(hasBasemap ? basemapStatus : "unavailable");
+  }, [basemapStatus, hasBasemap, onBasemapStatus]);
+  const pixelsPerUnit = Math.min(size.width, size.height) / 360;
+  const camera = useMemo(
+    () => ({
+      center: fromMercator(
+        projection.x + center.x / projection.scale,
+        projection.y + center.y / projection.scale,
+      ),
+      zoom: Math.log2((projection.scale * zoom * pixelsPerUnit) / 256),
+    }),
+    [center, pixelsPerUnit, projection, zoom],
+  );
   return (
-    <div
-      ref={surface}
-      style={{
-        position: "absolute",
-        inset: 0,
-        touchAction: preview ? "auto" : "none",
-      }}
-      onPointerDown={(e) => {
-        if (preview || !e.isPrimary || e.button !== 0) return;
-        dragged.current = false;
-        drag.current = {
-          id: e.pointerId,
-          x: e.clientX,
-          y: e.clientY,
-          moved: false,
-        };
-      }}
-      onPointerMove={(e) => {
-        const d = drag.current;
-        if (!d || d.id !== e.pointerId) return;
-        const dx = e.clientX - d.x,
-          dy = e.clientY - d.y;
-        if (!d.moved && Math.hypot(dx, dy) < 4) return;
-        e.currentTarget.setPointerCapture(e.pointerId);
-        d.moved = dragged.current = true;
-        d.x = e.clientX;
-        d.y = e.clientY;
-        const rect = e.currentTarget.getBoundingClientRect();
-        const factor =
-          360 / (Math.max(1, Math.min(rect.width, rect.height)) * zoom);
-        setCenter((c) => ({ x: c.x - dx * factor, y: c.y - dy * factor }));
-      }}
-      onPointerUp={() => {
-        drag.current = null;
-      }}
-      onPointerCancel={() => {
-        drag.current = null;
-      }}
-      onPointerLeave={() => {
-        if (!drag.current?.moved) drag.current = null;
-      }}
-      onClickCapture={(e) => {
-        if (dragged.current) {
-          e.stopPropagation();
+    <>
+      {hasBasemap && (
+        <GoogleBasemap
+          camera={camera}
+          satellite={satellite}
+          onStatus={setBasemapStatus}
+        />
+      )}
+      <div
+        ref={surface}
+        style={{
+          position: "absolute",
+          inset: 0,
+          touchAction: preview ? "auto" : "none",
+          clipPath: showAttribution ? "inset(0 0 26px 0)" : undefined,
+          cursor: preview ? undefined : "grab",
+          pointerEvents: preview ? "none" : "auto",
+        }}
+        tabIndex={preview ? undefined : 0}
+        aria-label={preview ? undefined : "Interactive road map"}
+        onKeyDown={(event) => {
+          if (preview || event.target !== event.currentTarget) return;
+          const step = 32 / zoom;
+          switch (event.key) {
+            case "ArrowLeft":
+              setCenter((c) => ({ ...c, x: c.x - step }));
+              break;
+            case "ArrowRight":
+              setCenter((c) => ({ ...c, x: c.x + step }));
+              break;
+            case "ArrowUp":
+              setCenter((c) => ({ ...c, y: c.y - step }));
+              break;
+            case "ArrowDown":
+              setCenter((c) => ({ ...c, y: c.y + step }));
+              break;
+            case "+":
+            case "=":
+              onZoomTo?.(Math.min(zoom * 1.4, 1024));
+              break;
+            case "-":
+              onZoomTo?.(Math.max(zoom / 1.4, 0.5));
+              break;
+            default:
+              return;
+          }
+          event.preventDefault();
+        }}
+        onPointerDown={(e) => {
+          if (preview || !e.isPrimary || e.button !== 0) return;
           dragged.current = false;
-        }
-      }}
-    >
-      <Svg
-        width="100%"
-        height="100%"
-        viewBox={`${center.x * zoom} ${center.y * zoom} 360 360`}
+          drag.current = {
+            id: e.pointerId,
+            x: e.clientX,
+            y: e.clientY,
+            moved: false,
+          };
+        }}
+        onPointerMove={(e) => {
+          const d = drag.current;
+          if (!d || d.id !== e.pointerId) return;
+          const dx = e.clientX - d.x,
+            dy = e.clientY - d.y;
+          if (!d.moved && Math.hypot(dx, dy) < 4) return;
+          e.currentTarget.setPointerCapture(e.pointerId);
+          d.moved = dragged.current = true;
+          d.x = e.clientX;
+          d.y = e.clientY;
+          const rect = e.currentTarget.getBoundingClientRect();
+          const factor =
+            360 / (Math.max(1, Math.min(rect.width, rect.height)) * zoom);
+          setCenter((c) => ({ x: c.x - dx * factor, y: c.y - dy * factor }));
+        }}
+        onPointerUp={() => {
+          drag.current = null;
+        }}
+        onPointerCancel={() => {
+          drag.current = null;
+        }}
+        onPointerLeave={() => {
+          if (!drag.current?.moved) drag.current = null;
+        }}
+        onClickCapture={(e) => {
+          if (dragged.current) {
+            e.stopPropagation();
+            dragged.current = false;
+          }
+        }}
       >
-        <MapViewport.Provider
-          value={{
-            x: 180 + center.x * zoom,
-            y: 180 + center.y * zoom,
-            ...size,
-            unitsPerPixel: 360 / Math.min(size.width, size.height),
-          }}
+        <Svg
+          width="100%"
+          height="100%"
+          viewBox={`${center.x * zoom} ${center.y * zoom} 360 360`}
         >
-          {children}
-        </MapViewport.Provider>
-      </Svg>
-    </div>
+          <MapViewport.Provider
+            value={{
+              x: 180 + center.x * zoom,
+              y: 180 + center.y * zoom,
+              ...size,
+              unitsPerPixel: 360 / Math.min(size.width, size.height),
+            }}
+          >
+            {children}
+          </MapViewport.Provider>
+        </Svg>
+      </div>
+    </>
   );
 }
 type Focus = { x: number; y: number; key: number; shift?: number };
@@ -160,6 +243,8 @@ type Focus = { x: number; y: number; key: number; shift?: number };
 const tierWidths = [5, 4.2, 3.4, 2.6];
 export type MapProps = {
   preview?: boolean;
+  desktop?: boolean;
+  onBasemapStatus?: (status: BasemapStatus) => void;
   onSelectSegment?: (id: string) => void;
   segments?: SegmentResult[];
   zoom?: number;
@@ -180,6 +265,8 @@ export type MapProps = {
 };
 export function RoadMap({
   preview = false,
+  desktop = false,
+  onBasemapStatus,
   onSelectSegment,
   segments,
   zoom = 1,
@@ -260,6 +347,32 @@ export function RoadMap({
     return { minLat, maxLat, minLon, maxLon };
   }, [data, crashPoints, crashHeat, crashDots]);
   const { minLat, maxLat, minLon, maxLon } = bounds;
+  const projection = useMemo(() => {
+    if (minLat === Infinity) return { x: 0, y: 0, scale: 1 };
+    const northwest = mercator([maxLat, minLon]);
+    const southeast = mercator([minLat, maxLon]);
+    return {
+      x: (northwest.x + southeast.x) / 2,
+      y: (northwest.y + southeast.y) / 2,
+      scale:
+        320 /
+        Math.max(
+          southeast.x - northwest.x,
+          southeast.y - northwest.y,
+          0.000004,
+        ),
+    };
+  }, [minLat, maxLat, minLon, maxLon]);
+  const [basemapStatus, setBasemapStatus] = useState<BasemapStatus>(
+    googleMapsWebKey ? "loading" : "unavailable",
+  );
+  const reportBasemap = useCallback(
+    (status: BasemapStatus) => {
+      setBasemapStatus(status);
+      onBasemapStatus?.(status);
+    },
+    [onBasemapStatus],
+  );
   const selectedSegment = roads.find((s) => s.id === state.selected);
   const [focus, setFocus] = useState<Focus>();
   const lastSelected = useRef<string | undefined>(undefined);
@@ -272,29 +385,23 @@ export function RoadMap({
       tapped.current = null;
       return;
     }
-    const cos = Math.cos((minLat * Math.PI) / 180);
-    const base =
-      320 /
-      Math.max(
-        Math.max((maxLon - minLon) * cos, 0.001),
-        Math.max(maxLat - minLat, 0.001),
-      );
-    const lats = selectedSegment.geometry.map((p) => p[0]),
-      lons = selectedSegment.geometry.map((p) => p[1]);
-    const sMinLat = Math.min(...lats),
-      sMaxLat = Math.max(...lats),
-      sMinLon = Math.min(...lons),
-      sMaxLon = Math.max(...lons);
+    const points = selectedSegment.geometry.map(mercator);
+    const xs = points.map((p) => p.x);
+    const ys = points.map((p) => p.y);
+    const left = Math.min(...xs);
+    const right = Math.max(...xs);
+    const top = Math.min(...ys);
+    const bottom = Math.max(...ys);
     const extent =
-      Math.max((sMaxLon - sMinLon) * cos, sMaxLat - sMinLat, 0.0005) * base;
-    // Viewport center offsets are expressed in zoom-1 units, so they do not depend on zoom.
+      Math.max(right - left, bottom - top, 0.000002) * projection.scale;
     setFocus({
-      x: ((sMinLon + sMaxLon) / 2 - (minLon + maxLon) / 2) * cos * base,
-      y: -((sMinLat + sMaxLat) / 2 - (minLat + maxLat) / 2) * base,
+      x: ((left + right) / 2 - projection.x) * projection.scale,
+      y: ((top + bottom) / 2 - projection.y) * projection.scale,
       key: Date.now(),
+      shift: desktop ? 0 : undefined,
     });
     onZoomTo?.(Math.min(Math.max(200 / extent, 1), 1024));
-  }, [preview, selectedSegment, minLat, maxLat, minLon, maxLon, onZoomTo]);
+  }, [preview, selectedSegment, minLat, projection, desktop, onZoomTo]);
   // Zoom to the scoped ward (or back to the whole city) in Heat mode.
   const wardScope = rankView ? scopeWard : undefined;
   const lastScope = useRef<number | undefined>(undefined);
@@ -310,34 +417,20 @@ export function RoadMap({
         onZoomTo?.(1);
         return;
       }
-      const cos = Math.cos((minLat * Math.PI) / 180);
-      const base =
-        320 /
-        Math.max(
-          Math.max((maxLon - minLon) * cos, 0.001),
-          Math.max(maxLat - minLat, 0.001),
-        );
       const [[south, west], [north, east]] = box;
-      const extent = Math.max((east - west) * cos, north - south) * base;
+      const a = mercator([north, west]);
+      const b = mercator([south, east]);
+      const extent = Math.max(b.x - a.x, b.y - a.y) * projection.scale;
       setFocus({
-        x: ((west + east) / 2 - (minLon + maxLon) / 2) * cos * base,
-        y: -((south + north) / 2 - (minLat + maxLat) / 2) * base,
+        x: ((a.x + b.x) / 2 - projection.x) * projection.scale,
+        y: ((a.y + b.y) / 2 - projection.y) * projection.scale,
         key: Date.now(),
-        shift: 0.2,
+        shift: desktop ? 0 : 0.2,
       });
-      onZoomTo?.(Math.min(Math.max(150 / extent, 1), 64));
+      onZoomTo?.(Math.min(Math.max((desktop ? 245 : 150) / extent, 1), 64));
     });
     return () => cancelAnimationFrame(frame);
-  }, [
-    preview,
-    wardScope,
-    data.wards,
-    minLat,
-    maxLat,
-    minLon,
-    maxLon,
-    onZoomTo,
-  ]);
+  }, [preview, wardScope, data.wards, minLat, projection, desktop, onZoomTo]);
   if (minLat === Infinity)
     return (
       <View
@@ -379,22 +472,19 @@ export function RoadMap({
         </View>
       </View>
     );
-  const spanX = Math.max(
-      (maxLon - minLon) * Math.cos((minLat * Math.PI) / 180),
-      0.001,
-    ),
-    spanY = Math.max(maxLat - minLat, 0.001),
-    scale = (320 / Math.max(spanX, spanY)) * zoom;
-  const project = ([lat, lon]: number[]) =>
-    `${180 + (lon - (minLon + maxLon) / 2) * Math.cos((minLat * Math.PI) / 180) * scale},${180 - (lat - (minLat + maxLat) / 2) * scale}`;
-  return (
-    <View style={{ flex: 1, backgroundColor: c.mapBackground }}>
-      <MapSurface
-        key={state.mapReset}
-        zoom={zoom}
-        preview={preview}
-        focus={focus}
-      >
+  const scale = projection.scale * zoom;
+  const project = (point: number[]) => {
+    const { x, y } = mercator(point);
+    return `${180 + (x - projection.x) * scale},${180 + (y - projection.y) * scale}`;
+  };
+  const unproject = (x: number, y: number) =>
+    fromMercator(
+      projection.x + (x - 180) / scale,
+      projection.y + (y - 180) / scale,
+    );
+  const layers = {
+    wards: (
+      <G testID="map-layer-wards">
         {data.wards.map((w, i) =>
           w.rings.map((ring, j) => (
             <WebPolygon
@@ -433,7 +523,10 @@ export function RoadMap({
                 />
               )),
             )}
-        {crashHeat && <CrashDensity points={crashPoints} project={project} />}
+      </G>
+    ),
+    segments: (
+      <G testID="map-layer-segments">
         {/* In a ranking view, unranked roads draw first (thin gray) and the
             strongest tiers last, so the best-ranked roads sit on top. */}
         {[...roads]
@@ -479,7 +572,7 @@ export function RoadMap({
               </G>
             );
           })}
-        {/* Draw the selected road last, with a dark casing so it stands out on any ward fill. */}
+        {/* Draw the selected road above other roads in the segment layer. */}
         {selectedSegment &&
           !preview &&
           [
@@ -497,16 +590,38 @@ export function RoadMap({
               pointerEvents="none"
             />
           ))}
+      </G>
+    ),
+    hotspots: crashHeat ? (
+      <G testID="map-layer-hotspots" pointerEvents="none">
+        <CrashDensity points={crashPoints} project={project} />
         {crashDots && (
           <CrashPointDots
             points={crashPoints}
             project={project}
-            midLat={(minLat + maxLat) / 2}
-            midLon={(minLon + maxLon) / 2}
-            latScale={scale}
-            lonScale={scale * Math.cos((minLat * Math.PI) / 180)}
+            unproject={unproject}
           />
         )}
+      </G>
+    ) : null,
+  };
+  const layerOrder =
+    desktop && !preview ? state.mapLayerOrder : defaultMapLayerOrder;
+  return (
+    <View style={{ flex: 1, backgroundColor: c.mapBackground }}>
+      <MapSurface
+        resetKey={state.mapReset}
+        zoom={zoom}
+        preview={preview}
+        focus={focus}
+        projection={projection}
+        satellite={mode === "Satellite"}
+        onBasemapStatus={reportBasemap}
+        onZoomTo={onZoomTo}
+      >
+        {[...layerOrder].reverse().map((layer) => (
+          <G key={layer}>{layers[layer]}</G>
+        ))}
         {[
           ...(crashHeat
             ? markers.map((m) => ({ ...m, fill: c.crashMarker, kind: "crash" }))
@@ -548,20 +663,23 @@ export function RoadMap({
           );
         })}
       </MapSurface>
-      {mode === "Satellite" && (
+      {mode === "Satellite" && basemapStatus !== "ready" && (
         <View
+          pointerEvents="none"
           style={{
             position: "absolute",
-            bottom: 12,
-            left: 12,
-            right: 12,
+            top: desktop ? 16 : "48%",
+            alignSelf: "center",
+            maxWidth: "85%",
             backgroundColor: c.surface,
             padding: 10,
             borderRadius: 12,
           }}
         >
           <T muted size={12}>
-            Satellite imagery is available in the mobile app.
+            {basemapStatus === "loading"
+              ? "Loading satellite imagery…"
+              : "Satellite imagery is unavailable. Showing Norman’s road and ward layers."}
           </T>
         </View>
       )}

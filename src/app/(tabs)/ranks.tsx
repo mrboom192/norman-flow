@@ -16,7 +16,8 @@ import {
 } from "../../analysis/rankings";
 import { RankKind } from "../../analysis/types";
 import { DatasetBanner } from "../../components/DatasetBanner";
-import { SegmentRow } from "../../components/SegmentRow";
+import { SegmentColumns, SegmentRow } from "../../components/SegmentRow";
+import { useDesktopLayout } from "../../components/desktopLayout";
 import { Sheet } from "../../components/Sheet";
 import { useTourTarget } from "../../components/tourTargets";
 import { Button, Empty, Input, Row, Screen, T } from "../../components/ui";
@@ -56,12 +57,16 @@ const kinds: { key: RankKind; label: string; description: string }[] = [
 ];
 
 export default function Rankings() {
+  const desktop = useDesktopLayout();
   const c = useTheme(),
     ward = useFlow((s) => s.ward),
     result = useFlow((s) => s.results);
   const scroll = useRef<React.ComponentRef<typeof ScrollView>>(null);
   const wardsTarget = useTourTarget("ranks-wards", scroll);
   const firstTarget = useTourTarget("ranks-first", scroll);
+  const metricsTarget = useTourTarget("ranks-metrics", scroll);
+  const sortTarget = useTourTarget("ranks-sort", scroll);
+  const exportTarget = useTourTarget("ranks-export", scroll);
   const [kind, setKind] = useState<RankKind>("combined"),
     [query, setQuery] = useState(""),
     [sort, setSort] = useState<RankingSort>("rank"),
@@ -177,33 +182,40 @@ export default function Rankings() {
   }
   return (
     <View style={{ flex: 1 }}>
-      <Screen scrollRef={scroll} style={{ paddingHorizontal: 0 }}>
+      <Screen
+        wide
+        scrollRef={scroll}
+        style={{ paddingHorizontal: desktop ? 8 : 0 }}
+      >
         <Row style={{ paddingHorizontal: 20 }}>
           <T heading size={30}>
             Rankings
           </T>
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel="Export rankings"
-            accessibilityHint="Opens workbook export options"
-            onPress={() => setSheet("export")}
-            style={({ pressed }) => ({
-              width: 44,
-              height: 44,
-              borderRadius: 22,
-              alignItems: "center",
-              justifyContent: "center",
-              backgroundColor: c.dataSurface,
-              opacity: pressed ? 0.7 : 1,
-            })}
-          >
-            <Download size={20} color={c.ink} />
-          </Pressable>
+          <View {...exportTarget}>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Export rankings"
+              accessibilityHint="Opens workbook export options"
+              onPress={() => setSheet("export")}
+              style={({ pressed }) => ({
+                width: 44,
+                height: 44,
+                borderRadius: 22,
+                alignItems: "center",
+                justifyContent: "center",
+                backgroundColor: c.dataSurface,
+                opacity: pressed ? 0.7 : 1,
+              })}
+            >
+              <Download size={20} color={c.ink} />
+            </Pressable>
+          </View>
         </Row>
         <DatasetBanner style={{ paddingHorizontal: 20 }} />
 
         <View {...wardsTarget} style={{ gap: 16 }}>
           <View
+            {...metricsTarget}
             accessibilityRole="tablist"
             accessibilityLabel="Ranking type"
             style={{
@@ -296,8 +308,15 @@ export default function Rankings() {
             })}
           </ScrollView>
 
-          <View style={{ paddingHorizontal: 20, gap: 12 }}>
-            <Row style={{ gap: 10 }}>
+          <View
+            {...sortTarget}
+            style={{
+              paddingHorizontal: 20,
+              gap: 12,
+              ...(desktop && { flexDirection: "row" }),
+            }}
+          >
+            <Row style={{ gap: 10, ...(desktop && { width: 390 }) }}>
               <Dropdown
                 icon={ArrowUpDown}
                 label={sorts[sort]}
@@ -315,7 +334,11 @@ export default function Rankings() {
               placeholder="Search roads"
               value={query}
               onChangeText={setQuery}
-              style={{ borderWidth: 0, backgroundColor: c.dataSurface }}
+              style={{
+                borderWidth: 0,
+                backgroundColor: c.dataSurface,
+                ...(desktop && { flex: 1 }),
+              }}
             />
           </View>
         </View>
@@ -354,6 +377,7 @@ export default function Rankings() {
               {notice}
             </T>
           )}
+          {desktop && rows.length > 0 && <SegmentColumns />}
           {rows[0] ? (
             <View
               onLayout={(e) => {
@@ -367,6 +391,7 @@ export default function Rankings() {
                 key={rowKey(rows[0].id)}
                 segment={rows[0]}
                 kind={kind}
+                desktop={desktop}
                 highlighted={highlight?.id === rows[0].id}
               />
             </View>
@@ -410,6 +435,7 @@ export default function Rankings() {
                 key={rowKey(segment.id)}
                 segment={segment}
                 kind={kind}
+                desktop={desktop}
                 divider
                 highlighted={highlight?.id === segment.id}
               />

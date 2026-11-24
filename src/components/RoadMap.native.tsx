@@ -1,3 +1,5 @@
+import { defaultMapLayerOrder, type MapLayer } from "../analysis/mapLayers";
+import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import { crashDensityImage } from "../analysis/crashDensityImage";
 import { createCrashLocationIndex } from "../analysis/crashLocationIndex";
 import Constants from "expo-constants";
@@ -15,7 +17,6 @@ import {
   valueRange,
   wardBounds,
 } from "../analysis/mapViews";
-import { useEffect, useMemo, useRef, useState } from "react";
 import { Platform, View } from "react-native";
 import MapView, {
   type Region,
@@ -239,35 +240,14 @@ export function RoadMap({
       },
     );
   }, [preview, ready, wardScope, data.wards, mapSize.height]);
-  return (
-    <View style={{ flex: 1 }}>
-      <MapView
-        ref={map}
-        provider={googleMaps ? PROVIDER_GOOGLE : undefined}
-        onLayout={(event) =>
-          setMapSize({
-            width: event.nativeEvent.layout.width,
-            height: event.nativeEvent.layout.height,
-          })
-        }
-        onMapReady={() => setReady(true)}
-        onRegionChangeComplete={(nextRegion) => {
-          camera.current = nextRegion;
-          setRegion(nextRegion);
-        }}
-        style={{ flex: 1 }}
-        initialRegion={{
-          latitude: 35.2226,
-          longitude: -97.4395,
-          latitudeDelta: 0.25,
-          longitudeDelta: 0.25,
-        }}
-        mapType={mode === "Satellite" ? "satellite" : "standard"}
-        scrollEnabled={!preview}
-        zoomEnabled={!preview}
-        rotateEnabled={!preview && !crashDots && !crashHeat}
-        pitchEnabled={!crashDots && !crashHeat}
-      >
+  const layerOrder = defaultMapLayerOrder;
+  // Google heat tiles stay at z-index zero. Place geometry on either side of them.
+  // Apple Maps uses insertion order.
+  const layerZ = (layer: MapLayer) =>
+    (layerOrder.indexOf("hotspots") - layerOrder.indexOf(layer)) * 10;
+  const layers = {
+    wards: (
+      <>
         {data.wards.map((w, i) => (
           <Polygon
             key={i}
@@ -297,6 +277,7 @@ export function RoadMap({
                 : c.wardStrokes[(w.id - 1) % c.wardStrokes.length]
             }
             strokeWidth={c.wardStrokeWidth}
+            zIndex={layerZ("wards")}
             tappable={!preview && Boolean(onSelectWard)}
             onPress={() => onSelectWard?.(w.id)}
           />
@@ -316,9 +297,13 @@ export function RoadMap({
                 strokeColor={c.ink}
                 strokeWidth={3}
                 tappable={false}
-                zIndex={1}
+                zIndex={layerZ("wards") + 1}
               />
             ))}
+      </>
+    ),
+    hotspots: (
+      <>
         {densityImage && (
           <Overlay
             bounds={densityImage.bounds}
@@ -337,6 +322,10 @@ export function RoadMap({
             }}
           />
         )}
+      </>
+    ),
+    segments: (
+      <>
         {roads.flatMap((s) => {
           const style = styles?.get(s.id);
           const coordinates = s.geometry.map(([latitude, longitude]) => ({
@@ -345,7 +334,8 @@ export function RoadMap({
           }));
           // Ranking views: unranked roads thin gray; better tiers thicker and on top.
           const width = styles ? (style ? [7, 6, 5, 4][style.tier] : 1.5) : 3;
-          const zIndex = style ? 2 + (3 - style.tier) * 0.1 : 2;
+          const zIndex =
+            layerZ("segments") + (style ? 1 + (3 - style.tier) * 2 : 1);
           return [
             ...(style?.overCapacity
               ? [
@@ -357,7 +347,7 @@ export function RoadMap({
                     lineCap="round"
                     lineJoin="round"
                     tappable={false}
-                    zIndex={zIndex - 0.05}
+                    zIndex={zIndex - 1}
                   />,
                 ]
               : []),
@@ -376,7 +366,7 @@ export function RoadMap({
             />,
           ];
         })}
-        {/* Draw the selected road on top, with a dark casing so it stands out on any ward fill. */}
+        {/* Draw the selected road above other roads in the segment layer. */}
         {selected &&
           !preview &&
           [
@@ -394,9 +384,44 @@ export function RoadMap({
               lineCap="round"
               lineJoin="round"
               tappable={false}
-              zIndex={line.width === 10 ? 3 : 4}
+              zIndex={layerZ("segments") + (line.width === 10 ? 8 : 9)}
             />
           ))}
+      </>
+    ),
+  };
+  return (
+    <View style={{ flex: 1 }}>
+      <MapView
+        ref={map}
+        provider={googleMaps ? PROVIDER_GOOGLE : undefined}
+        onLayout={(event) =>
+          setMapSize({
+            width: event.nativeEvent.layout.width,
+            height: event.nativeEvent.layout.height,
+          })
+        }
+        onMapReady={() => setReady(true)}
+        onRegionChangeComplete={(nextRegion) => {
+          camera.current = nextRegion;
+          setRegion(nextRegion);
+        }}
+        style={{ flex: 1 }}
+        initialRegion={{
+          latitude: 35.2226,
+          longitude: -97.4395,
+          latitudeDelta: 0.25,
+          longitudeDelta: 0.25,
+        }}
+        mapType={mode === "Satellite" ? "satellite" : "standard"}
+        scrollEnabled={!preview}
+        zoomEnabled={!preview}
+        rotateEnabled={!preview && !crashDots && !crashHeat}
+        pitchEnabled={!crashDots && !crashHeat}
+      >
+        {[...layerOrder].reverse().map((layer) => (
+          <Fragment key={layer}>{layers[layer]}</Fragment>
+        ))}
         {sites.map((site) => (
           <Marker
             key={site.id + ":" + site.count}

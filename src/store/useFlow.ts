@@ -1,3 +1,4 @@
+import type { ActiveTour } from "../config/tours";
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
 import Storage from "./storage";
@@ -14,6 +15,7 @@ import {
 import { defaultSettings, runPipeline } from "../analysis/pipeline";
 import { officialPresetId } from "../analysis/capacity";
 import { defaultPrimary } from "../theme/palette";
+import { defaultMapLayerOrder, type MapLayer } from "../analysis/mapLayers";
 export type DatasetFile = {
   /** Older persisted files without a source are user uploads. */
   source?: "base" | "uploaded";
@@ -119,7 +121,8 @@ type State = {
   selected: string | null;
   mapReset: number;
   crashPointsVisible: boolean;
-  tour: number | null;
+  mapLayerOrder: MapLayer[];
+  tour: ActiveTour | null;
   /**
    * One-off request from the map's "See its rank": Rankings scrolls to and
    * highlights this segment in this ward. `key` changes on every request.
@@ -158,6 +161,7 @@ type SavedState = Pick<
   | "aliases"
   | "capacityPresets"
   | "crashPointsVisible"
+  | "mapLayerOrder"
 >;
 export const flowStorage = createFlowStorage<SavedState>(Storage, (error) => {
   useFlow.setState({
@@ -183,6 +187,7 @@ export const useFlow = create<State>()(
       selected: null,
       mapReset: 0,
       crashPointsVisible: false,
+      mapLayerOrder: [...defaultMapLayerOrder],
       tour: null,
       rankFocus: null,
       set,
@@ -364,6 +369,7 @@ export const useFlow = create<State>()(
         aliases: s.aliases,
         capacityPresets: s.capacityPresets,
         crashPointsVisible: s.crashPointsVisible,
+        mapLayerOrder: s.mapLayerOrder,
       }),
       onRehydrateStorage: () => (_state, error) => {
         useFlow.setState({

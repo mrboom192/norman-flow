@@ -8,11 +8,14 @@ import { StatusBar } from "expo-status-bar";
 import { SafeAreaProvider, SafeAreaView } from "react-native-safe-area-context";
 import { View, Platform } from "react-native";
 import { useEffect, useState } from "react";
+import { CoachTour } from "../components/CoachTour";
 import { StartupScreen } from "../components/StartupScreen";
+import { useDesktopLayout } from "../components/desktopLayout";
 import { initializeData, StartupProgress } from "../services/startup";
 import { useFlow } from "../store/useFlow";
 import { useTheme } from "../theme";
 export default function Layout() {
+  const desktop = useDesktopLayout();
   const [fonts, error] = useFonts({
     Fredoka_600SemiBold,
     Inter_400Regular,
@@ -66,7 +69,7 @@ export default function Layout() {
           style={{
             flex: 1,
             width: "100%",
-            maxWidth: Platform.OS === "web" ? 480 : undefined,
+            maxWidth: Platform.OS === "web" && !desktop ? 480 : undefined,
             alignSelf: "center",
           }}
         >
@@ -91,6 +94,7 @@ export default function Layout() {
             />
             <Stack.Screen name="videos" options={{ presentation: "modal" }} />
           </Stack>
+          <CoachTour />
         </View>
       </View>
     </SafeAreaProvider>

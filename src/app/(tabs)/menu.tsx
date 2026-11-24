@@ -20,6 +20,7 @@ import {
 } from "lucide-react-native";
 import { type ReactNode, useRef, useState } from "react";
 import { Linking, Pressable, ScrollView, View } from "react-native";
+import { useDesktopLayout } from "../../components/desktopLayout";
 import { OfficialNote } from "../../components/OfficialNote";
 import { CapacityPresets } from "../../components/CapacityPresets";
 import {
@@ -48,6 +49,7 @@ import { appColors } from "../../theme/palette";
 type MenuSheet = "" | "files" | "analysis" | "remove" | "undo" | "capacity";
 
 export default function Menu() {
+  const desktop = useDesktopLayout();
   const c = useTheme(),
     state = useFlow(),
     [distance, setDistance] = useState(String(state.settings.matchDistance)),
@@ -59,6 +61,7 @@ export default function Menu() {
     [capacityMode, setCapacityMode] = useState<"view" | "edit">("view");
   const scroll = useRef<React.ComponentRef<typeof ScrollView>>(null);
   const dataTarget = useTourTarget("menu-data", scroll);
+  const appearanceTarget = useTourTarget("menu-appearance", scroll);
   function saveSettings() {
     const meters = Number(distance);
     if (!Number.isFinite(meters) || meters <= 0) {
@@ -95,204 +98,250 @@ export default function Menu() {
     (f) => (f.source ?? "uploaded") === "uploaded",
   ).length;
   const overrideCount = Object.keys(state.settings.laneOverrides).length;
+  const mapWasReset = () =>
+    setStatus("Map reset. Only the official 2026 base data remains.");
 
   return (
     <View style={{ flex: 1 }}>
-      <Screen scrollRef={scroll} style={{ gap: 24 }}>
-        <T heading size={30}>
-          Menu
-        </T>
-
-        <View {...dataTarget}>
-          <Section title="Data">
-            <View style={{ marginBottom: 10 }}>
-              <OfficialNote />
-            </View>
-            <View style={{ gap: 6, marginBottom: 12 }}>
-              <Button
-                icon={Upload}
-                label="Add new data & re-rank"
-                onPress={() => router.push("/import")}
-              />
-              <T muted size={12}>
-                Import results from the Excel tool and preview changes before
-                saving.
-              </T>
-            </View>
-            <MenuRow
-              icon={FolderOpen}
-              title="Data files"
-              subtitle={
-                state.files.length
-                  ? `${state.files.length} in use${uploadedCount ? ` · ${uploadedCount} uploaded` : ""}`
-                  : "No files yet"
-              }
-              onPress={() => setSheet("files")}
-            />
-            <MenuRow
-              icon={ShieldCheck}
-              title="Restore official 2026 results"
-              subtitle="Reload the bundled results and clear uploads"
-              onPress={() => {
-                state.restoreOfficial();
-                setStatus(
-                  "Official 2026 results restored. Undo last analysis run brings back your previous data.",
-                );
-              }}
-            />
-            {state.previous && (
-              <MenuRow
-                icon={Undo2}
-                title="Undo last analysis run"
-                subtitle="Restore the previous files and results"
-                onPress={() => setSheet("undo")}
-              />
-            )}
-            <MenuRow
-              icon={SlidersHorizontal}
-              title="Analysis settings"
-              subtitle={`Match distance ${state.settings.matchDistance} m${overrideCount ? ` · ${overrideCount} lane override${overrideCount === 1 ? "" : "s"}` : ""}`}
-              onPress={() => setSheet("analysis")}
-            />
-          </Section>
-        </View>
-
-        <Section title="Appearance">
-          <MenuRow
-            icon={Moon}
-            title="Dark mode"
-            trailing={
-              <Toggle
-                accessibilityLabel="Dark mode"
-                value={state.dark}
-                onValueChange={(dark) => state.set({ dark })}
-              />
-            }
-          />
-          <MenuRow
-            icon={Eye}
-            title="Colorblind-friendly colors"
-            subtitle="Map and chart colors use orange and blue"
-            trailing={
-              <Toggle
-                accessibilityLabel="Colorblind-friendly colors"
-                value={state.colorblindMode}
-                onValueChange={(colorblindMode) =>
-                  state.set({ colorblindMode })
-                }
-              />
-            }
-          />
-          <View
-            style={{
-              minHeight: 64,
-              flexDirection: "row",
-              alignItems: "center",
-              gap: 12,
-              borderTopWidth: 1,
-              borderColor: c.divider,
-            }}
-          >
-            <IconTile icon={Palette} />
-            <View style={{ flex: 1 }}>
-              <T size={14} style={{ fontFamily: fonts.bold }}>
-                App color
-              </T>
-            </View>
-            <Row style={{ gap: 0 }}>
-              {appColors.map(([name, color]) => {
-                const active = state.primary === color;
-                return (
-                  <Pressable
-                    key={color}
-                    accessibilityLabel={`${name} app color`}
-                    accessibilityRole="button"
-                    accessibilityState={{ selected: active }}
-                    onPress={() => state.set({ primary: color })}
-                    style={{
-                      width: 44,
-                      height: 44,
-                      justifyContent: "center",
-                      alignItems: "center",
-                    }}
-                  >
-                    <View
-                      style={{
-                        width: 34,
-                        height: 34,
-                        borderRadius: 17,
-                        padding: 3,
-                        borderWidth: 2,
-                        borderColor: active ? c.ink : "transparent",
-                      }}
-                    >
-                      <View
-                        style={{
-                          flex: 1,
-                          borderRadius: 14,
-                          backgroundColor: color,
-                        }}
-                      />
-                    </View>
-                  </Pressable>
-                );
-              })}
-            </Row>
-          </View>
-        </Section>
-
-        <Section title="Help">
-          <MenuRow
-            icon={Clapperboard}
-            title="Reusable tools videos"
-            subtitle="Excel, Colab, Power BI and Google Sheets tutorials"
-            onPress={() => router.push("/videos")}
-          />
-          <View style={{ gap: 10, paddingTop: 12 }}>
+      <Screen
+        wide
+        scrollRef={scroll}
+        backgroundColor={desktop ? c.dataSurface : undefined}
+        style={{ gap: 24 }}
+      >
+        {desktop ? (
+          <Row style={{ paddingVertical: 6 }}>
+            <T heading size={34}>
+              Settings & resources
+            </T>
             <Button
-              icon={CirclePlay}
-              label="Replay tutorial"
-              onPress={() => router.push("/welcome")}
+              icon={Upload}
+              label="Add new data & re-rank"
+              onPress={() => router.push("/import")}
             />
-            <ResetMapButton
-              onDone={() =>
-                setStatus(
-                  "Map reset. Only the official 2026 base data remains.",
-                )
-              }
-            />
-          </View>
-        </Section>
+          </Row>
+        ) : (
+          <T heading size={30}>
+            Menu
+          </T>
+        )}
 
-        <Section title="Resources">
-          <MenuRow
-            icon={Gauge}
-            title="ACOG network capacities"
-            subtitle={
-              state.settings.capacityPreset
-                ? `What-if preset in use: ${state.settings.capacityPreset.name}`
-                : "LOS E capacity used for V/C · PDF and presets"
-            }
-            onPress={() => {
-              setCapacityMode("view");
-              setSheet("capacity");
-            }}
-          />
-          <MenuRow
-            icon={Globe}
-            title="City of Norman interactive map"
-            subtitle="Aerials for counting lanes"
-            external
-            onPress={() => openLink("https://www.normanok.gov")}
-          />
-          <MenuRow
-            icon={MapIcon}
-            title="City Council ward map"
-            subtitle="All 8 wards"
-            external
-            onPress={() => openLink("https://www.normanok.gov")}
-          />
-        </Section>
+        <View
+          style={{
+            gap: 24,
+            ...(desktop && { flexDirection: "row", alignItems: "flex-start" }),
+          }}
+        >
+          <View style={{ gap: 24, ...(desktop && { flex: 1, minWidth: 0 }) }}>
+            <View {...dataTarget}>
+              <Section
+                title={desktop ? "Analysis & files" : "Data"}
+                desktop={desktop}
+                icon={FolderOpen}
+              >
+                <View style={{ marginBottom: 10 }}>
+                  <OfficialNote />
+                </View>
+                {!desktop && (
+                  <View style={{ gap: 6, marginBottom: 12 }}>
+                    <Button
+                      icon={Upload}
+                      label="Add new data & re-rank"
+                      onPress={() => router.push("/import")}
+                    />
+                    <T muted size={12}>
+                      Import results from the Excel tool and preview changes
+                      before saving.
+                    </T>
+                  </View>
+                )}
+                <MenuRow
+                  icon={FolderOpen}
+                  title="Data files"
+                  subtitle={
+                    state.files.length
+                      ? `${state.files.length} in use${uploadedCount ? ` · ${uploadedCount} uploaded` : ""}`
+                      : "No files yet"
+                  }
+                  onPress={() => setSheet("files")}
+                />
+                <MenuRow
+                  icon={ShieldCheck}
+                  title="Restore official 2026 results"
+                  subtitle="Reload the bundled results and clear uploads"
+                  onPress={() => {
+                    state.restoreOfficial();
+                    setStatus(
+                      "Official 2026 results restored. Undo last analysis run brings back your previous data.",
+                    );
+                  }}
+                />
+                {state.previous && (
+                  <MenuRow
+                    icon={Undo2}
+                    title="Undo last analysis run"
+                    subtitle="Restore the previous files and results"
+                    onPress={() => setSheet("undo")}
+                  />
+                )}
+                <MenuRow
+                  icon={SlidersHorizontal}
+                  title="Analysis settings"
+                  subtitle={`Match distance ${state.settings.matchDistance} m${overrideCount ? ` · ${overrideCount} lane override${overrideCount === 1 ? "" : "s"}` : ""}`}
+                  onPress={() => setSheet("analysis")}
+                />
+              </Section>
+            </View>
+
+            <View {...appearanceTarget}>
+              <Section title="Appearance" desktop={desktop} icon={Palette}>
+                <MenuRow
+                  icon={Moon}
+                  title="Dark mode"
+                  trailing={
+                    <Toggle
+                      accessibilityLabel="Dark mode"
+                      value={state.dark}
+                      onValueChange={(dark) => state.set({ dark })}
+                    />
+                  }
+                />
+                <MenuRow
+                  icon={Eye}
+                  title="Colorblind-friendly colors"
+                  subtitle="Map and chart colors use orange and blue"
+                  trailing={
+                    <Toggle
+                      accessibilityLabel="Colorblind-friendly colors"
+                      value={state.colorblindMode}
+                      onValueChange={(colorblindMode) =>
+                        state.set({ colorblindMode })
+                      }
+                    />
+                  }
+                />
+                <View
+                  style={{
+                    minHeight: 64,
+                    flexDirection: "row",
+                    alignItems: "center",
+                    gap: 12,
+                    borderTopWidth: 1,
+                    borderColor: c.divider,
+                  }}
+                >
+                  <IconTile icon={Palette} />
+                  <View style={{ flex: 1 }}>
+                    <T size={14} style={{ fontFamily: fonts.bold }}>
+                      App color
+                    </T>
+                  </View>
+                  <Row style={{ gap: 0 }}>
+                    {appColors.map(([name, color]) => {
+                      const active = state.primary === color;
+                      return (
+                        <Pressable
+                          key={color}
+                          accessibilityLabel={`${name} app color`}
+                          accessibilityRole="button"
+                          accessibilityState={{ selected: active }}
+                          onPress={() => state.set({ primary: color })}
+                          style={{
+                            width: 44,
+                            height: 44,
+                            justifyContent: "center",
+                            alignItems: "center",
+                          }}
+                        >
+                          <View
+                            style={{
+                              width: 34,
+                              height: 34,
+                              borderRadius: 17,
+                              padding: 3,
+                              borderWidth: 2,
+                              borderColor: active ? c.ink : "transparent",
+                            }}
+                          >
+                            <View
+                              style={{
+                                flex: 1,
+                                borderRadius: 14,
+                                backgroundColor: color,
+                              }}
+                            />
+                          </View>
+                        </Pressable>
+                      );
+                    })}
+                  </Row>
+                </View>
+              </Section>
+            </View>
+          </View>
+          <View
+            style={{ gap: 24, ...(desktop && { width: 390, flexShrink: 0 }) }}
+          >
+            <Section title="Help" desktop={desktop} icon={CirclePlay}>
+              <MenuRow
+                icon={Clapperboard}
+                title="Reusable tools videos"
+                subtitle="Excel, Colab, Power BI and Google Sheets tutorials"
+                onPress={() => router.push("/videos")}
+              />
+              <View style={{ gap: 10, paddingTop: 12 }}>
+                <Button
+                  icon={CirclePlay}
+                  label="Replay tutorial"
+                  onPress={() => router.push("/welcome")}
+                  style={desktop ? { alignSelf: "flex-start" } : undefined}
+                />
+                {!desktop && <ResetMapButton onDone={mapWasReset} />}
+              </View>
+            </Section>
+
+            <Section title="Resources" desktop={desktop} icon={Globe}>
+              <MenuRow
+                icon={Gauge}
+                title="ACOG network capacities"
+                subtitle={
+                  state.settings.capacityPreset
+                    ? `What-if preset in use: ${state.settings.capacityPreset.name}`
+                    : "LOS E capacity used for V/C · PDF and presets"
+                }
+                onPress={() => {
+                  setCapacityMode("view");
+                  setSheet("capacity");
+                }}
+              />
+              <MenuRow
+                icon={Globe}
+                title="City of Norman interactive map"
+                subtitle="Aerials for counting lanes"
+                external
+                onPress={() => openLink("https://www.normanok.gov")}
+              />
+              <MenuRow
+                icon={MapIcon}
+                title="City Council ward map"
+                subtitle="All 8 wards"
+                external
+                onPress={() => openLink("https://www.normanok.gov")}
+              />
+            </Section>
+            {desktop && (
+              <Section title="Map reset" desktop icon={Trash2}>
+                <T muted size={13} style={{ marginBottom: 10 }}>
+                  Clear added map data and restore the bundled analysis.
+                </T>
+                <ResetMapButton
+                  onDone={mapWasReset}
+                  style={{ alignSelf: "flex-start" }}
+                />
+              </Section>
+            )}
+          </View>
+        </View>
 
         {Boolean(status || state.persistenceError) && (
           <T size={12} accessibilityLiveRegion="polite">
@@ -376,7 +425,9 @@ export default function Menu() {
                           {fileDisplayName(f)}
                         </T>
                         <T muted size={11}>
-                          {f.referenceOnly ? `${f.summary} · Source reference` : f.summary}
+                          {f.referenceOnly
+                            ? `${f.summary} · Source reference`
+                            : f.summary}
                         </T>
                       </View>
                       {source === "uploaded" && (
@@ -549,7 +600,52 @@ export default function Menu() {
   );
 }
 
-function Section({ title, children }: { title: string; children: ReactNode }) {
+function Section({
+  title,
+  children,
+  desktop,
+  icon: Icon,
+}: {
+  title: string;
+  children: ReactNode;
+  desktop?: boolean;
+  icon: LucideIcon;
+}) {
+  const c = useTheme();
+  if (desktop)
+    return (
+      <View
+        style={{
+          backgroundColor: c.surface,
+          borderColor: c.border,
+          borderWidth: 1,
+          borderRadius: 22,
+          padding: 20,
+          gap: 4,
+        }}
+      >
+        <Row
+          style={{ justifyContent: "flex-start", gap: 10, marginBottom: 10 }}
+        >
+          <View
+            style={{
+              width: 36,
+              height: 36,
+              borderRadius: 12,
+              backgroundColor: c.primaryTint,
+              alignItems: "center",
+              justifyContent: "center",
+            }}
+          >
+            <Icon size={18} color={c.primaryText} />
+          </View>
+          <T heading size={22}>
+            {title}
+          </T>
+        </Row>
+        {children}
+      </View>
+    );
   return (
     <View style={{ gap: 2 }}>
       <T heading size={19} style={{ marginBottom: 4 }}>

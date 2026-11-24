@@ -17,6 +17,7 @@ import {
   visibleCrashPoints,
 } from "../src/analysis/crashMap";
 import { combine } from "../src/store/useFlow";
+import { defaultMapLayerOrder, moveMapLayer } from "../src/analysis/mapLayers";
 import { runPipeline } from "../src/analysis/pipeline";
 import { emptyInputs, type CrashPoint } from "../src/analysis/types";
 
@@ -48,6 +49,15 @@ const file = (data = emptyInputs(), source = "base", visible = true) => ({
   data,
   source: source as "base" | "uploaded",
   visible,
+});
+
+it("defaults to hotspots above the roads and can move a layer anywhere in the stack", () => {
+  const order = [...defaultMapLayerOrder];
+  expect(order).toEqual(["hotspots", "segments", "wards"]);
+  expect(moveMapLayer(order, 0, 2)).toEqual(["segments", "wards", "hotspots"]);
+  expect(moveMapLayer(order, 2, -1)).toEqual(["wards", "hotspots", "segments"]);
+  expect(moveMapLayer(order, 0, -1)).toBe(order);
+  expect(order).toEqual(defaultMapLayerOrder);
 });
 
 it("loads all 21,153 unique observed points in lat/lon order, including off-study crashes", () => {

@@ -22,6 +22,7 @@ import {
   T,
   Toggle,
 } from "../components/ui";
+import { useTourTarget } from "../components/tourTargets";
 import { OfficialNote } from "../components/OfficialNote";
 import { runPipeline } from "../analysis/pipeline";
 import { fonts, useTheme } from "../theme";
@@ -165,6 +166,7 @@ export default function Import() {
       setBusy(false);
     }
   }
+  const filesTarget = useTourTarget("import-files");
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: c.background }}>
       <Screen>
@@ -181,38 +183,40 @@ export default function Import() {
           />
         </Row>
         <OfficialNote />
-        <Card>
-          <View
-            style={{
-              borderWidth: 1,
-              borderStyle: "dashed",
-              borderColor: c.border,
-              borderRadius: 18,
-              padding: 24,
-              alignItems: "center",
-              gap: 14,
-            }}
-          >
-            <Upload size={32} color={c.primaryText} />
-            <T heading size={20}>
-              Bring your files together
-            </T>
-            <T muted size={13} style={{ textAlign: "center" }}>
-              {advanced
-                ? "Raw traffic counts and collisions: CSV or XLSX\nRoad segments and wards: KML, KMZ or GeoJSON"
-                : "Required: norman_flow_rankings.csv\nOptional: norman_segments.geojson, norman_wards.geojson, norman_crash_points.geojson (or a crash sheet with Lat/Lon, for the hotspot map)"}
-            </T>
-            <Button
-              label={
-                picked.length || parsed.length
-                  ? "Choose different files"
-                  : "Choose files"
-              }
-              onPress={choose}
-              disabled={busy}
-            />
-          </View>
-        </Card>
+        <View {...filesTarget}>
+          <Card>
+            <View
+              style={{
+                borderWidth: 1,
+                borderStyle: "dashed",
+                borderColor: c.border,
+                borderRadius: 18,
+                padding: 24,
+                alignItems: "center",
+                gap: 14,
+              }}
+            >
+              <Upload size={32} color={c.primaryText} />
+              <T heading size={20}>
+                Bring your files together
+              </T>
+              <T muted size={13} style={{ textAlign: "center" }}>
+                {advanced
+                  ? "Raw traffic counts and collisions: CSV or XLSX\nRoad segments and wards: KML, KMZ or GeoJSON"
+                  : "Required: norman_flow_rankings.csv\nOptional: norman_segments.geojson, norman_wards.geojson, norman_crash_points.geojson (or a crash sheet with Lat/Lon, for the hotspot map)"}
+              </T>
+              <Button
+                label={
+                  picked.length || parsed.length
+                    ? "Choose different files"
+                    : "Choose files"
+                }
+                onPress={choose}
+                disabled={busy}
+              />
+            </View>
+          </Card>
+        </View>
         <Row style={{ gap: 12, minHeight: 56 }}>
           <FlaskConical size={20} color={c.muted} />
           <View style={{ flex: 1 }}>

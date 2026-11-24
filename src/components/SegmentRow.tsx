@@ -7,18 +7,57 @@ import { useFlow } from "../store/useFlow";
 import { colors, fonts, format, useTheme } from "../theme";
 import { Button, Row, T } from "./ui";
 
+const metricWidth = 96;
+const desktopColumns = ["V/C ratio", "Collisions", "Traffic / day", "Score"];
+
+export function SegmentColumns() {
+  const c = useTheme();
+  return (
+    <View
+      style={{
+        flexDirection: "row",
+        alignItems: "center",
+        gap: 12,
+        paddingVertical: 12,
+        borderBottomWidth: 1,
+        borderColor: c.divider,
+      }}
+    >
+      <T muted size={12} style={{ width: 38, textAlign: "center" }}>
+        Rank
+      </T>
+      <T muted size={12} style={{ flex: 1 }}>
+        Road segment
+      </T>
+      {desktopColumns.map((column) => (
+        <T
+          key={column}
+          muted
+          size={12}
+          style={{ width: metricWidth, textAlign: "right" }}
+        >
+          {column}
+        </T>
+      ))}
+      <View style={{ width: 18 }} />
+    </View>
+  );
+}
+
 /** A ranked segment as a flush list row that expands to show its details. */
 export function SegmentRow({
   segment: s,
   kind = "combined",
   divider = false,
   highlighted = false,
+  desktop = false,
 }: {
   segment: SegmentResult;
   kind?: RankKind;
   divider?: boolean;
   /** Opened from the map's "See its rank": outlined and expanded. */
   highlighted?: boolean;
+  desktop?: boolean;
 }) {
   const [expanded, setExpanded] = useState(highlighted),
     c = useTheme();
@@ -36,6 +75,19 @@ export function SegmentRow({
       : kind === "vc"
         ? [format(s.vc, 2), "V/C"]
         : [format(s.collisions), "crashes"];
+  const desktopValues = desktop
+    ? [
+        format(s.vc, 2),
+        format(s.collisions),
+        format(s.maxVolume),
+        format(s.combinedScore),
+      ]
+    : [];
+  const metricSummary = desktop
+    ? desktopValues
+        .map((metric, i) => `${desktopColumns[i]} ${metric}`)
+        .join(", ")
+    : `${value} ${unit}`;
   return (
     <View
       accessibilityLabel={highlighted ? "Selected on the map" : undefined}
@@ -58,7 +110,7 @@ export function SegmentRow({
     >
       <Pressable
         accessibilityRole="button"
-        accessibilityLabel={`Rank ${format(rank)}: ${s.road}, segment ${s.index}. ${value} ${unit}. ${expanded ? "Collapse" : "Expand"} details`}
+        accessibilityLabel={`Rank ${format(rank)}: ${s.road}, segment ${s.index}. ${metricSummary}. ${expanded ? "Collapse" : "Expand"} details`}
         accessibilityState={{ expanded }}
         onPress={() => setExpanded(!expanded)}
         style={({ pressed }) => ({
@@ -96,14 +148,30 @@ export function SegmentRow({
             · {s.lengthMi.toFixed(2)} mi
           </T>
         </View>
-        <View style={{ alignItems: "flex-end", minWidth: 44 }}>
-          <T heading size={18}>
-            {value}
-          </T>
-          <T muted size={10}>
-            {unit}
-          </T>
-        </View>
+        {desktop ? (
+          desktopValues.map((metric, i) => (
+            <T
+              key={desktopColumns[i]}
+              size={14}
+              style={{
+                width: metricWidth,
+                textAlign: "right",
+                fontFamily: fonts.bold,
+              }}
+            >
+              {metric}
+            </T>
+          ))
+        ) : (
+          <View style={{ alignItems: "flex-end", minWidth: 44 }}>
+            <T heading size={18}>
+              {value}
+            </T>
+            <T muted size={10}>
+              {unit}
+            </T>
+          </View>
+        )}
         <ChevronDown
           size={18}
           color={c.muted}
@@ -141,7 +209,10 @@ export function SegmentRow({
                 `${format(s.lanes)} lanes`,
               ],
             ].map(([label, main, sub]) => (
-              <View key={label} style={{ width: "50%", padding: 10, gap: 1 }}>
+              <View
+                key={label}
+                style={{ width: desktop ? "25%" : "50%", padding: 10, gap: 1 }}
+              >
                 <T muted size={11}>
                   {label}
                 </T>
@@ -178,6 +249,7 @@ export function SegmentRow({
           <Button
             icon={MapPin}
             label="Show on map"
+            style={desktop ? { alignSelf: "flex-start" } : undefined}
             onPress={() => {
               useFlow.getState().set({ selected: s.id });
               router.push("/search");

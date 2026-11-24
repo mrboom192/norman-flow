@@ -1,14 +1,19 @@
 import { router } from "expo-router";
 import { Layers, Maximize } from "lucide-react-native";
-import { View } from "react-native";
+import { useState } from "react";
+import { Platform, View } from "react-native";
 import { useFlow } from "../store/useFlow";
 import { useTheme } from "../theme";
 import { RoadMap } from "./RoadMap";
+import type { BasemapStatus } from "./GoogleBasemap";
+import { useDesktopLayout } from "./desktopLayout";
 import { SegmentLengthLegend } from "./SegmentLengthLegend";
 import { IconButton, T } from "./ui";
 
 export function MapPreviewCard() {
   const c = useTheme();
+  const desktop = useDesktopLayout();
+  const [basemap, setBasemap] = useState<BasemapStatus>("unavailable");
   const hasGeometry = useFlow((state) =>
     state.files.some(
       (file) =>
@@ -19,14 +24,17 @@ export function MapPreviewCard() {
   return (
     <View
       style={{
-        minHeight: 300,
+        minHeight: desktop ? 450 : 300,
         borderRadius: 28,
         overflow: "hidden",
         backgroundColor: c.mapBackground,
       }}
     >
-      <View style={{ flex: 1 }} pointerEvents="none">
-        <RoadMap preview />
+      <View
+        style={{ flex: 1 }}
+        pointerEvents={Platform.OS === "web" ? "box-none" : "none"}
+      >
+        <RoadMap preview onBasemapStatus={setBasemap} />
       </View>
       <View
         pointerEvents="none"
@@ -65,7 +73,7 @@ export function MapPreviewCard() {
           pointerEvents="none"
           style={{
             position: "absolute",
-            bottom: 16,
+            bottom: basemap === "ready" ? 32 : 16,
             left: 16,
             right: 16,
             flexDirection: "row",
