@@ -1,22 +1,11 @@
+import { useShallow } from "zustand/react/shallow";
 import { defaultMapLayerOrder, type MapLayer } from "../analysis/mapLayers";
 import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import { crashDensityImage } from "../analysis/crashDensityImage";
 import { createCrashLocationIndex } from "../analysis/crashLocationIndex";
 import Constants from "expo-constants";
-import {
-  topSegmentMarkers,
-  visibleCrashPoints,
-  heatRadiusPixels,
-  crashClusters,
-} from "../analysis/crashMap";
-import {
-  type MapMetric,
-  rankBadges,
-  rankedRows,
-  segmentStyle,
-  valueRange,
-  wardBounds,
-} from "../analysis/mapViews";
+import { heatRadiusPixels, crashClusters } from "../analysis/crashMap";
+import { wardBounds } from "../analysis/mapViews";
 import { Platform, View } from "react-native";
 import MapView, {
   type Region,
@@ -27,27 +16,10 @@ import MapView, {
   Polygon,
   Polyline,
 } from "react-native-maps";
-import { segmentLengthColor, useTheme } from "../theme";
-import { useFlow, visibleGeometry } from "../store/useFlow";
-import { SegmentResult } from "../analysis/types";
+import { segmentLengthColor } from "../theme";
+import { useFlow } from "../store/useFlow";
+import { useRoadMapData, type MapProps } from "./useRoadMapData";
 import { T } from "./ui";
-type MapProps = {
-  preview?: boolean;
-  onSelectSegment?: (id: string) => void;
-  segments?: SegmentResult[];
-  zoom?: number;
-  mode?: string;
-  metric?: MapMetric;
-  scopeWard?: number;
-  crashYear?: number;
-  crashSegmentIds?: Set<string>;
-  /** Web-only; native fits the camera to the selected segment itself. */
-  onZoomTo?: (zoom: number) => void;
-  /** Tapping inside a ward (not on a road) reports which ward it is. */
-  onSelectWard?: (ward: number) => void;
-  /** Ward to outline after a tap. */
-  selectedWard?: number;
-};
 export function RoadMap({
   preview = false,
   onSelectSegment,
@@ -61,54 +33,39 @@ export function RoadMap({
   onSelectWard,
   selectedWard,
 }: MapProps) {
-  const c = useTheme(),
-    state = useFlow(),
-    map = useRef<MapView>(null),
-    data = useMemo(() => visibleGeometry(state.files), [state.files]);
-  const roads = useMemo(() => {
-    if (segments) return segments;
-    const visible = new Set(data.segments.map((s) => s.id));
-    return state.results?.segments.filter((s) => visible.has(s.id)) ?? [];
-  }, [segments, state.results, data.segments]);
-  const crashPoints = useMemo(
-    () =>
-      visibleCrashPoints(state.files, crashSegmentIds).filter(
-        (p) => crashYear === undefined || p.year === crashYear,
-      ),
-    [state.files, crashSegmentIds, crashYear],
-  );
-  const markers = useMemo(
-    () => topSegmentMarkers(state.files, roads),
-    [state.files, roads],
-  );
+  const state = useFlow(
+      useShallow((s) => ({
+        crashPointsVisible: s.crashPointsVisible,
+        mapReset: s.mapReset,
+        selected: s.selected,
+        set: s.set,
+      })),
+    ),
+    map = useRef<MapView>(null);
+  const {
+    c,
+    data,
+    roads,
+    crashPoints,
+    markers,
+    crashHeat,
+    rankView,
+    styles,
+    badges,
+  } = useRoadMapData({
+    segments,
+    preview,
+    mode,
+    metric,
+    scopeWard,
+    crashYear,
+    crashSegmentIds,
+  });
   const googleMaps =
     Platform.OS === "android" ||
     (Constants.expoConfig?.extra?.googleMapsIosEnabled === true &&
       Constants.executionEnvironment !== "storeClient");
-  const heatMode = !preview && mode === "Heat";
-  const crashHeat = heatMode && metric === "crashes";
-  const rankView = heatMode && metric !== "crashes" ? metric : undefined;
   const wardScope = rankView ? scopeWard : undefined;
-  // Ranked roads for this view; recomputed from the loaded results so a new
-  // import recolors the map immediately.
-  const ranked = useMemo(() => {
-    if (!rankView) return undefined;
-    const visible = new Set(roads.map((s) => s.id));
-    return rankedRows(state.results, rankView, scopeWard).filter((r) =>
-      visible.has(r.id),
-    );
-  }, [rankView, roads, state.results, scopeWard]);
-  const styles = useMemo(() => {
-    if (!ranked || !rankView) return undefined;
-    const range = valueRange(ranked);
-    return new Map(
-      ranked.map((r) => [r.id, segmentStyle(r, rankView, range, c)]),
-    );
-  }, [ranked, rankView, c]);
-  const badges = useMemo(
-    () => (ranked && scopeWard !== undefined ? rankBadges(ranked) : []),
-    [ranked, scopeWard],
-  );
   const weightedPoints = useMemo(
     () =>
       crashHeat && googleMaps

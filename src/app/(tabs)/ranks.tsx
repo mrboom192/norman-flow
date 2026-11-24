@@ -147,13 +147,18 @@ export default function Rankings() {
     sort === "road"
       ? { ascending: "A–Z", descending: "Z–A" }
       : { ascending: "Lowest to highest", descending: "Highest to lowest" };
-  const rows = sortRankingRows(
-    (allWards ? citywide[kind] : (result?.wards[ward]?.[kind] ?? [])).filter(
-      (s) => s.road.toLowerCase().includes(query.toLowerCase()),
-    ),
-    kind,
-    sort,
-    order,
+  const rows = useMemo(
+    () =>
+      sortRankingRows(
+        (allWards
+          ? citywide[kind]
+          : (result?.wards[ward]?.[kind] ?? [])
+        ).filter((s) => s.road.toLowerCase().includes(query.toLowerCase())),
+        kind,
+        sort,
+        order,
+      ),
+    [allWards, citywide, kind, result, ward, query, sort, order],
   );
   // A new highlight remounts its row so it opens expanded.
   const rowKey = (id: string) =>

@@ -57,6 +57,7 @@ export default function Chat() {
     [messages, setMessages] = useState<Message[]>([greeting]),
     scroll = useRef<React.ComponentRef<typeof ScrollView>>(null),
     last = useRef("");
+  const followReplies = useRef(true);
   const inputTarget = useTourTarget("chat-input");
   // Questions answered from the loaded analysis, so they always have real results.
   const dataQuestions = useMemo(() => {
@@ -80,6 +81,7 @@ export default function Chat() {
   async function send(text: string) {
     const question = text.trim();
     if (!question || thinking) return;
+    followReplies.current = true;
     const history = messages.slice(1).map(({ role, text }) => ({ role, text }));
     setMessages((m) => [...m, { role: "user", text: question }]);
     setDraft("");
@@ -284,8 +286,18 @@ export default function Chat() {
             gap: 12,
             flexGrow: 1,
           }}
+          scrollEventThrottle={32}
+          onScroll={({
+            nativeEvent: { contentSize, contentOffset, layoutMeasurement },
+          }) => {
+            followReplies.current =
+              contentSize.height - contentOffset.y - layoutMeasurement.height <
+              72;
+          }}
           onContentSizeChange={() =>
-            started && scroll.current?.scrollToEnd({ animated: true })
+            started &&
+            followReplies.current &&
+            scroll.current?.scrollToEnd({ animated: true })
           }
         >
           {messages.map((m, i) => (

@@ -53,6 +53,7 @@ function PhoneSheet({
     const finish = () => {
       if (!element.open) return;
       element.close();
+      surface?.style.removeProperty("--sheet-drag");
       dismiss.current?.();
     };
     if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
@@ -167,6 +168,12 @@ function PhoneSheet({
             const gesture = drag.current;
             if (gesture?.id !== event.pointerId) return;
             const offset = event.clientY - gesture.startY;
+            if (offset >= 40 && !expanded) {
+              drag.current = null;
+              dragged.current = true;
+              onClose();
+              return;
+            }
             clearDrag();
             if (Math.abs(offset) < 40) return;
             dragged.current = true;
@@ -175,7 +182,9 @@ function PhoneSheet({
             else onClose();
           }}
           onPointerCancel={clearDrag}
-          onLostPointerCapture={clearDrag}
+          onLostPointerCapture={() => {
+            if (drag.current) clearDrag();
+          }}
         >
           <span style={{ backgroundColor: c.muted }} />
         </button>

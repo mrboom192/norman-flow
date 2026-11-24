@@ -1,3 +1,4 @@
+import { useShallow } from "zustand/react/shallow";
 import { CrashPointDots, MapViewport } from "./CrashPointDots";
 import {
   type ComponentProps,
@@ -9,7 +10,6 @@ import {
   useState,
   useMemo,
 } from "react";
-import { topSegmentMarkers, visibleCrashPoints } from "../analysis/crashMap";
 import { CrashDensity } from "./CrashDensity";
 import { defaultMapLayerOrder } from "../analysis/mapLayers";
 import { fromMercator, mercator } from "../analysis/mapProjection";
@@ -18,14 +18,7 @@ import {
   googleMapsWebKey,
   type BasemapStatus,
 } from "./GoogleBasemap";
-import {
-  type MapMetric,
-  rankBadges,
-  rankedRows,
-  segmentStyle,
-  valueRange,
-  wardBounds,
-} from "../analysis/mapViews";
+import { wardBounds } from "../analysis/mapViews";
 import { View } from "react-native";
 import Svg, {
   Path,
@@ -38,9 +31,9 @@ import Svg, {
   G,
   Text as SvgText,
 } from "react-native-svg";
-import { segmentLengthColor, useTheme } from "../theme";
-import { useFlow, visibleGeometry } from "../store/useFlow";
-import { SegmentResult } from "../analysis/types";
+import { segmentLengthColor } from "../theme";
+import { useFlow } from "../store/useFlow";
+import { useRoadMapData, type MapProps } from "./useRoadMapData";
 import { T } from "./ui";
 // The web renderer supports DOM click handlers; its shared native types omit them.
 const WebPolyline = Polyline as ComponentType<
@@ -241,28 +234,7 @@ function MapSurface({
 type Focus = { x: number; y: number; key: number; shift?: number };
 // Ranked-road widths by emphasis tier (0 = strongest), in SVG units.
 const tierWidths = [5, 4.2, 3.4, 2.6];
-export type MapProps = {
-  preview?: boolean;
-  desktop?: boolean;
-  onBasemapStatus?: (status: BasemapStatus) => void;
-  onSelectSegment?: (id: string) => void;
-  segments?: SegmentResult[];
-  zoom?: number;
-  mode?: string;
-  /** Heat-mode view: a ranking metric or the crash hotspot layer. */
-  metric?: MapMetric;
-  /** Ward to focus in Heat mode; undefined is citywide. */
-  scopeWard?: number;
-  /** Show only crashes from this year on the hotspot layer. */
-  crashYear?: number;
-  crashSegmentIds?: Set<string>;
-  /** Called when the map zooms itself to fit a selected segment. */
-  onZoomTo?: (zoom: number) => void;
-  /** Tapping inside a ward (not on a road) reports which ward it is. */
-  onSelectWard?: (ward: number) => void;
-  /** Ward to outline after a tap. */
-  selectedWard?: number;
-};
+export type { MapProps } from "./useRoadMapData";
 export function RoadMap({
   preview = false,
   desktop = false,
@@ -279,49 +251,35 @@ export function RoadMap({
   onSelectWard,
   selectedWard,
 }: MapProps) {
-  const c = useTheme(),
-    state = useFlow(),
-    data = useMemo(() => visibleGeometry(state.files), [state.files]);
-  const roads = useMemo(() => {
-    if (segments) return segments;
-    const visible = new Set(data.segments.map((s) => s.id));
-    return state.results?.segments.filter((s) => visible.has(s.id)) ?? [];
-  }, [segments, state.results, data.segments]);
-  const crashPoints = useMemo(
-    () =>
-      visibleCrashPoints(state.files, crashSegmentIds).filter(
-        (p) => crashYear === undefined || p.year === crashYear,
-      ),
-    [state.files, crashSegmentIds, crashYear],
+  const state = useFlow(
+    useShallow((s) => ({
+      crashPointsVisible: s.crashPointsVisible,
+      mapLayerOrder: s.mapLayerOrder,
+      mapReset: s.mapReset,
+      selected: s.selected,
+      set: s.set,
+    })),
   );
-  const markers = useMemo(
-    () => topSegmentMarkers(state.files, roads),
-    [state.files, roads],
-  );
-  const heatMode = !preview && mode === "Heat";
-  const crashHeat = heatMode && metric === "crashes";
+  const {
+    c,
+    data,
+    roads,
+    crashPoints,
+    markers,
+    crashHeat,
+    rankView,
+    styles,
+    badges,
+  } = useRoadMapData({
+    segments,
+    preview,
+    mode,
+    metric,
+    scopeWard,
+    crashYear,
+    crashSegmentIds,
+  });
   const crashDots = crashHeat && state.crashPointsVisible;
-  const rankView = heatMode && metric !== "crashes" ? metric : undefined;
-  // Ranked roads for this view, keyed by segment; recomputed from the loaded
-  // results, so a new import recolors the map immediately.
-  const ranked = useMemo(() => {
-    if (!rankView) return undefined;
-    const visible = new Set(roads.map((s) => s.id));
-    return rankedRows(state.results, rankView, scopeWard).filter((r) =>
-      visible.has(r.id),
-    );
-  }, [rankView, roads, state.results, scopeWard]);
-  const styles = useMemo(() => {
-    if (!ranked || !rankView) return undefined;
-    const range = valueRange(ranked);
-    return new Map(
-      ranked.map((r) => [r.id, segmentStyle(r, rankView, range, c)]),
-    );
-  }, [ranked, rankView, c]);
-  const badges = useMemo(
-    () => (ranked && scopeWard !== undefined ? rankBadges(ranked) : []),
-    [ranked, scopeWard],
-  );
   // Segments picked on the map stay put; selections from elsewhere zoom to fit.
   const tapped = useRef<string | null>(null);
   const select = (id: string) => {

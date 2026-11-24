@@ -1,3 +1,4 @@
+import { useMemo } from "react";
 import { useFlow } from "../store/useFlow";
 import { accentText, defaultPrimary, luminance } from "./palette";
 export const colors = {
@@ -115,32 +116,35 @@ export function useTheme() {
   const dark = useFlow((s) => s.dark),
     primary = useFlow((s) => s.primary),
     colorblind = useFlow((s) => s.colorblindMode);
-  return {
-    ...colors,
-    ...(colorblind ? colorblindColors : {}),
-    primary,
-    primaryText: accentText(primary),
-    onPrimary: luminance(primary) > 0.179 ? colors.ink : colors.white,
-    ...(dark
-      ? {
-          background: colors.ink,
-          surface: colors.darkSurface,
-          ink: colors.white,
-          muted: colors.darkMuted,
-          primaryText: lightenAccent(primary),
-          primaryDeep: "#D4D4D4",
-          primaryTint: colors.darkTint,
-          chipTint: colors.darkTint,
-          divider: "#2E2E2E",
-          border: "#383838",
-          blueTint: colors.darkTint,
-          blue: "#AAC8FF",
-          mapBackground: "#1D1D1D",
-          dataSurface: "#242424",
-          floatShadow: "0px 6px 20px rgba(0, 0, 0, 0.45)",
-        }
-      : {}),
-  };
+  return useMemo(
+    () => ({
+      ...colors,
+      ...(colorblind ? colorblindColors : {}),
+      primary,
+      primaryText: accentText(primary),
+      onPrimary: luminance(primary) > 0.179 ? colors.ink : colors.white,
+      ...(dark
+        ? {
+            background: colors.ink,
+            surface: colors.darkSurface,
+            ink: colors.white,
+            muted: colors.darkMuted,
+            primaryText: lightenAccent(primary),
+            primaryDeep: "#D4D4D4",
+            primaryTint: colors.darkTint,
+            chipTint: colors.darkTint,
+            divider: "#2E2E2E",
+            border: "#383838",
+            blueTint: colors.darkTint,
+            blue: "#AAC8FF",
+            mapBackground: "#1D1D1D",
+            dataSurface: "#242424",
+            floatShadow: "0px 6px 20px rgba(0, 0, 0, 0.45)",
+          }
+        : {}),
+    }),
+    [primary, colorblind, dark],
+  );
 }
 function lightenAccent(hex: string) {
   return `#${[1, 3, 5]

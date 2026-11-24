@@ -1,9 +1,9 @@
 import { ArrowUpRight, LucideIcon, Search } from "lucide-react-native";
 import React from "react";
 import {
+  Platform,
   Pressable,
   ScrollView,
-  StyleSheet,
   Switch,
   SwitchProps,
   Text,
@@ -237,6 +237,7 @@ export function Input({
   ...props
 }: TextInputProps & { search?: boolean }) {
   const c = useTheme();
+  const [focused, setFocused] = React.useState(false);
   return (
     <View
       style={[
@@ -246,7 +247,7 @@ export function Input({
           gap: 10,
           borderRadius: 999,
           borderWidth: 1,
-          borderColor: c.border,
+          borderColor: focused ? c.primaryText : c.border,
           backgroundColor: c.surface,
           paddingHorizontal: 16,
           minHeight: 50,
@@ -257,13 +258,21 @@ export function Input({
       {search && <Search size={18} color={c.muted} />}
       <TextInput
         {...props}
+        onFocus={(event) => {
+          setFocused(true);
+          props.onFocus?.(event);
+        }}
+        onBlur={(event) => {
+          setFocused(false);
+          props.onBlur?.(event);
+        }}
         accessibilityLabel={props.accessibilityLabel ?? props.placeholder}
         placeholderTextColor={c.muted}
         style={
           {
             fontFamily: fonts.body,
             color: c.ink,
-            fontSize: 14,
+            fontSize: Platform.OS === "web" ? 16 : 14,
             flex: 1,
             minWidth: 0,
             paddingVertical: 12,
@@ -358,28 +367,6 @@ export function WardPicker({
           </T>
         </Pressable>
       ))}
-    </View>
-  );
-}
-export function StatTile({ value, label }: { value: string; label: string }) {
-  const c = useTheme();
-  return (
-    <View
-      style={{
-        flex: 1,
-        minWidth: 90,
-        height: 90,
-        backgroundColor: c.background,
-        borderRadius: 14,
-        padding: 12,
-      }}
-    >
-      <T heading size={24}>
-        {value}
-      </T>
-      <T muted size={12}>
-        {label}
-      </T>
     </View>
   );
 }
@@ -484,8 +471,3 @@ export function FileBadge({ label }: { label: string }) {
     </View>
   );
 }
-export const shared = StyleSheet.create({
-  wrap: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
-  grow: { flex: 1 },
-  separator: { height: 1 },
-});
