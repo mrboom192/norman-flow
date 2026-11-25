@@ -98,14 +98,14 @@ export const faqs: Faq[] = [
     topic: "Map",
     keywords: /marker|numbered|pin|badge/i,
     answer:
-      "In Heat mode’s Hotspots view, the numbered markers show the 10 segments with the most crashes citywide (1 = most). In a ward view, numbered badges mark that ward’s top 5 for the selected ranking.",
+      "With the Crash hotspots layer on, the numbered markers show the 10 segments with the most crashes citywide (1 = most). When a ward is focused under Ward boundaries, numbered badges mark that ward’s top 5 for the topmost ranking layer.",
   },
   {
     question: "How does the crash heat map work?",
     topic: "Map",
     keywords: /heat ?map|density|hotspot|crash locations?/i,
     answer:
-      "Switch the map to Heat, then pick Crash density. Each recorded crash counts equally, and nearby crashes within about 200 metres add up into hotspots shown from yellow to dark red. Turn on Crash locations to see the individual points. The heat map is for display only; it doesn’t change any collision totals or rankings.",
+      "Open Data layers on the map and turn on Crash hotspots. Each recorded crash counts equally, and nearby crashes within about 200 metres add up into hotspots shown from yellow to dark red. Turn on Crash locations in its options to see the individual points. The heat map is for display only; it doesn’t change any collision totals or rankings.",
   },
   {
     question: "Why are some roads gray?",

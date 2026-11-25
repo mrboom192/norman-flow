@@ -11,7 +11,8 @@ import {
   useMemo,
 } from "react";
 import { CrashDensity } from "./CrashDensity";
-import { defaultMapLayerOrder } from "../analysis/mapLayers";
+import { defaultLayerStyle, type MapLayer } from "../analysis/mapLayers";
+import type { RankKind } from "../analysis/types";
 import { fromMercator, mercator } from "../analysis/mapProjection";
 import {
   GoogleBasemap,
@@ -31,9 +32,13 @@ import Svg, {
   G,
   Text as SvgText,
 } from "react-native-svg";
-import { segmentLengthColor } from "../theme";
+import { segmentLengthColor, useTheme } from "../theme";
 import { useFlow } from "../store/useFlow";
-import { useRoadMapData, type MapProps } from "./useRoadMapData";
+import {
+  type BasemapView,
+  useRoadMapData,
+  type MapProps,
+} from "./useRoadMapData";
 import { T } from "./ui";
 // The web renderer supports DOM click handlers; its shared native types omit them.
 const WebPolyline = Polyline as ComponentType<
@@ -49,7 +54,7 @@ function MapSurface({
   zoom,
   focus,
   projection,
-  satellite,
+  basemap,
   onBasemapStatus,
   onZoomTo,
   resetKey,
@@ -59,7 +64,7 @@ function MapSurface({
   zoom: number;
   focus?: Focus;
   projection: { x: number; y: number; scale: number };
-  satellite: boolean;
+  basemap: BasemapView;
   onBasemapStatus: (status: BasemapStatus) => void;
   onZoomTo?: (zoom: number) => void;
   resetKey: number;
@@ -126,7 +131,7 @@ function MapSurface({
       {hasBasemap && (
         <GoogleBasemap
           camera={camera}
-          satellite={satellite}
+          type={basemap}
           onStatus={setBasemapStatus}
         />
       )}
@@ -242,8 +247,8 @@ export function RoadMap({
   onSelectSegment,
   segments,
   zoom = 1,
-  mode = "Map",
-  metric = "combined",
+  basemap = "roadmap",
+  layers: visibleLayers,
   scopeWard,
   crashYear,
   crashSegmentIds,
@@ -254,8 +259,8 @@ export function RoadMap({
   const state = useFlow(
     useShallow((s) => ({
       crashPointsVisible: s.crashPointsVisible,
-      mapLayerOrder: s.mapLayerOrder,
       mapReset: s.mapReset,
+      mapLayerStyles: s.mapLayerStyles,
       selected: s.selected,
       set: s.set,
     })),
@@ -267,14 +272,14 @@ export function RoadMap({
     crashPoints,
     markers,
     crashHeat,
-    rankView,
-    styles,
+    shown,
+    rankStyles,
+    badgeKind,
     badges,
   } = useRoadMapData({
     segments,
     preview,
-    mode,
-    metric,
+    layers: visibleLayers,
     scopeWard,
     crashYear,
     crashSegmentIds,
@@ -360,13 +365,13 @@ export function RoadMap({
     });
     onZoomTo?.(Math.min(Math.max(200 / extent, 1), 1024));
   }, [preview, selectedSegment, minLat, projection, desktop, onZoomTo]);
-  // Zoom to the scoped ward (or back to the whole city) in Heat mode.
-  const wardScope = rankView ? scopeWard : undefined;
+  // Zoom to the focused ward (or back to the whole city).
+  const wardScope = preview ? undefined : scopeWard;
   const lastScope = useRef<number | undefined>(undefined);
   useEffect(() => {
     if (preview || wardScope === lastScope.current || minLat === Infinity)
       return;
-    // Zoom on the next frame, after the Heat card has rendered the new scope.
+    // Zoom on the next frame, after the panel has rendered the new focus.
     const frame = requestAnimationFrame(() => {
       lastScope.current = wardScope;
       const box = wardScope ? wardBounds(data.wards, wardScope) : undefined;
@@ -440,7 +445,20 @@ export function RoadMap({
       projection.x + (x - 180) / scale,
       projection.y + (y - 180) / scale,
     );
-  const layers = {
+  // The Home preview keeps the default look; the map uses the saved styles.
+  const layerStyle = (layer: MapLayer) =>
+    preview ? defaultLayerStyle : state.mapLayerStyles[layer];
+  const rankLayer = (kind: RankKind) => (
+    <RankLayer
+      kind={kind}
+      roads={roads}
+      styles={rankStyles[kind]}
+      project={project}
+      widthScale={layerStyle(kind).width}
+      onSelect={select}
+    />
+  );
+  const layers: Record<MapLayer, ReactNode> = {
     wards: (
       <G testID="map-layer-wards">
         {data.wards.map((w, i) =>
@@ -461,7 +479,7 @@ export function RoadMap({
                   ? c.divider
                   : c.wardStrokes[(w.id - 1) % c.wardStrokes.length]
               }
-              strokeWidth={c.wardStrokeWidth}
+              strokeWidth={c.wardStrokeWidth * layerStyle("wards").width}
             />
           )),
         )}
@@ -485,52 +503,54 @@ export function RoadMap({
     ),
     segments: (
       <G testID="map-layer-segments">
-        {/* In a ranking view, unranked roads draw first (thin gray) and the
-            strongest tiers last, so the best-ranked roads sit on top. */}
-        {[...roads]
-          .sort(
-            (a, b) =>
-              (styles ? (styles.get(b.id)?.tier ?? 9) : 0) -
-              (styles ? (styles.get(a.id)?.tier ?? 9) : 0),
-          )
-          .map((s) => {
-            const style = styles?.get(s.id);
-            const color = styles
-              ? (style?.color ?? c.unrankedRoad)
-              : segmentLengthColor(s.lengthMi, c);
-            const width = styles
-              ? style
-                ? tierWidths[style.tier]
-                : 1.2
-              : preview
-                ? 1
-                : 2.5;
-            return (
-              <G key={s.id}>
-                {style?.overCapacity && (
-                  <WebPolyline
-                    points={s.geometry.map(project).join(" ")}
-                    fill="none"
-                    stroke={c.ink}
-                    strokeWidth={width + 3}
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    pointerEvents="none"
-                  />
-                )}
-                <WebPolyline
-                  points={s.geometry.map(project).join(" ")}
-                  fill="none"
-                  stroke={color}
-                  strokeWidth={width}
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  onClick={() => !preview && select(s.id)}
-                />
-              </G>
-            );
-          })}
-        {/* Draw the selected road above other roads in the segment layer. */}
+        {roads.map((s) => (
+          <WebPolyline
+            key={s.id}
+            points={s.geometry.map(project).join(" ")}
+            fill="none"
+            stroke={segmentLengthColor(s.lengthMi, c)}
+            strokeWidth={preview ? 1 : 2.5 * layerStyle("segments").width}
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            onClick={() => !preview && select(s.id)}
+          />
+        ))}
+      </G>
+    ),
+    combined: rankLayer("combined"),
+    vc: rankLayer("vc"),
+    collisions: rankLayer("collisions"),
+    hotspots: crashHeat ? (
+      <G testID="map-layer-hotspots" pointerEvents="none">
+        <CrashDensity points={crashPoints} project={project} />
+        {crashDots && (
+          <CrashPointDots
+            points={crashPoints}
+            project={project}
+            unproject={unproject}
+          />
+        )}
+      </G>
+    ) : null,
+  };
+  return (
+    <View style={{ flex: 1, backgroundColor: c.mapBackground }}>
+      <MapSurface
+        resetKey={state.mapReset}
+        zoom={zoom}
+        preview={preview}
+        focus={focus}
+        projection={projection}
+        basemap={basemap}
+        onBasemapStatus={reportBasemap}
+        onZoomTo={onZoomTo}
+      >
+        {[...shown].reverse().map((layer) => (
+          <G key={layer} opacity={layerStyle(layer).opacity}>
+            {layers[layer]}
+          </G>
+        ))}
+        {/* The selected road draws above every layer. */}
         {selectedSegment &&
           !preview &&
           [
@@ -548,38 +568,6 @@ export function RoadMap({
               pointerEvents="none"
             />
           ))}
-      </G>
-    ),
-    hotspots: crashHeat ? (
-      <G testID="map-layer-hotspots" pointerEvents="none">
-        <CrashDensity points={crashPoints} project={project} />
-        {crashDots && (
-          <CrashPointDots
-            points={crashPoints}
-            project={project}
-            unproject={unproject}
-          />
-        )}
-      </G>
-    ) : null,
-  };
-  const layerOrder =
-    desktop && !preview ? state.mapLayerOrder : defaultMapLayerOrder;
-  return (
-    <View style={{ flex: 1, backgroundColor: c.mapBackground }}>
-      <MapSurface
-        resetKey={state.mapReset}
-        zoom={zoom}
-        preview={preview}
-        focus={focus}
-        projection={projection}
-        satellite={mode === "Satellite"}
-        onBasemapStatus={reportBasemap}
-        onZoomTo={onZoomTo}
-      >
-        {[...layerOrder].reverse().map((layer) => (
-          <G key={layer}>{layers[layer]}</G>
-        ))}
         {[
           ...(crashHeat
             ? markers.map((m) => ({ ...m, fill: c.crashMarker, kind: "crash" }))
@@ -594,7 +582,7 @@ export function RoadMap({
               accessibilityLabel={
                 marker.kind === "crash"
                   ? `Citywide crash rank ${marker.rank}`
-                  : `Ward ${scopeWard} rank ${marker.rank}`
+                  : `Ward ${scopeWard} ${rankKindLabel[badgeKind ?? "combined"]} rank ${marker.rank}`
               }
             >
               <Circle cx={cx} cy={cy} r={22} fill="transparent" />
@@ -621,7 +609,7 @@ export function RoadMap({
           );
         })}
       </MapSurface>
-      {mode === "Satellite" && basemapStatus !== "ready" && (
+      {!preview && basemap !== "roadmap" && basemapStatus !== "ready" && (
         <View
           pointerEvents="none"
           style={{
@@ -642,5 +630,67 @@ export function RoadMap({
         </View>
       )}
     </View>
+  );
+}
+
+const rankKindLabel: Record<RankKind, string> = {
+  combined: "combined",
+  vc: "V/C",
+  collisions: "collision",
+};
+
+/** One ranking layer: only its ranked roads, best tiers drawn last. */
+function RankLayer({
+  kind,
+  roads,
+  styles,
+  project,
+  widthScale,
+  onSelect,
+}: {
+  kind: RankKind;
+  roads: { id: string; geometry: number[][] }[];
+  styles?: Map<string, { color: string; tier: number; overCapacity: boolean }>;
+  project: (point: number[]) => string;
+  widthScale: number;
+  onSelect: (id: string) => void;
+}) {
+  const c = useTheme();
+  if (!styles) return null;
+  return (
+    <G testID={`map-layer-${kind}`}>
+      {roads
+        .filter((s) => styles.has(s.id))
+        .sort((a, b) => styles.get(b.id)!.tier - styles.get(a.id)!.tier)
+        .map((s) => {
+          const style = styles.get(s.id)!;
+          const width = tierWidths[style.tier] * widthScale;
+          const points = s.geometry.map(project).join(" ");
+          return (
+            <G key={s.id}>
+              {style.overCapacity && (
+                <WebPolyline
+                  points={points}
+                  fill="none"
+                  stroke={c.ink}
+                  strokeWidth={width + 3}
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  pointerEvents="none"
+                />
+              )}
+              <WebPolyline
+                points={points}
+                fill="none"
+                stroke={style.color}
+                strokeWidth={width}
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                onClick={() => onSelect(s.id)}
+              />
+            </G>
+          );
+        })}
+    </G>
   );
 }

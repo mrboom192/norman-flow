@@ -78,23 +78,24 @@ export const googleMapsWebKey =
 
 export function GoogleBasemap({
   camera,
-  satellite,
+  type,
   onStatus,
 }: {
   camera: Camera;
-  satellite: boolean;
+  /** Google map type id: roadmap, satellite or hybrid (imagery with labels). */
+  type: string;
   onStatus: (status: BasemapStatus) => void;
 }) {
   const host = useRef<HTMLDivElement>(null);
   const map = useRef<MapInstance | null>(null);
-  const latest = useRef({ camera, satellite });
+  const latest = useRef({ camera, type });
   const [status, setStatus] = useState<BasemapStatus>("loading");
 
   useEffect(() => {
-    latest.current = { camera, satellite };
+    latest.current = { camera, type };
     map.current?.moveCamera(camera);
-    map.current?.setMapTypeId(satellite ? "hybrid" : "roadmap");
-  }, [camera, satellite]);
+    map.current?.setMapTypeId(type);
+  }, [camera, type]);
 
   useEffect(() => {
     const element = host.current;
@@ -115,7 +116,7 @@ export function GoogleBasemap({
         }
         map.current = new maps.Map(element, {
           ...latest.current.camera,
-          mapTypeId: latest.current.satellite ? "hybrid" : "roadmap",
+          mapTypeId: latest.current.type,
           disableDefaultUI: true,
           gestureHandling: "none",
           keyboardShortcuts: false,

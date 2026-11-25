@@ -1,26 +1,23 @@
 import { visibleCrashPoints } from "../analysis/crashMap";
 import type { SegmentResult } from "../analysis/types";
-import { fileDisplayName } from "../services/displayNames";
 import { router, useFocusEffect, useLocalSearchParams } from "expo-router";
 import {
   ArrowLeft,
+  ChevronDown,
   ChevronRight,
-  Flame,
   Layers,
   type LucideIcon,
-  Map as MapIcon,
   Minus,
   Plus,
   RotateCcw,
-  Satellite,
   SlidersHorizontal,
   TriangleAlert,
-  Upload,
   X,
 } from "lucide-react-native";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   BackHandler,
+  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -33,33 +30,21 @@ import { useDesktopLayout } from "../components/desktopLayout";
 import { getTourStep } from "../config/tours";
 import { useTourTarget } from "../components/tourTargets";
 import { DatasetBanner } from "../components/DatasetBanner";
-import { MapLayerOrder } from "../components/MapLayerOrder";
-import { type MapLayer } from "../analysis/mapLayers";
-import { HeatPanel } from "../components/HeatPanel";
-import { mapMetrics, type MapMetric } from "../analysis/mapViews";
+import { visibleLayers } from "../analysis/mapLayers";
+import { BasemapSettings } from "../components/BasemapSettings";
+import { CollapsibleCard } from "../components/CollapsibleCard";
+import { DataLayers } from "../components/DataLayers";
+import { MapLegend } from "../components/MapLegend";
+import { BasemapThumb } from "../components/MapThumbs";
 import { RoadSearch } from "../components/RoadSearch";
 import { RoadMap } from "../components/RoadMap";
 import type { BasemapStatus } from "../components/GoogleBasemap";
-import { SegmentLengthLegend } from "../components/SegmentLengthLegend";
 import { Sheet } from "../components/Sheet";
-import {
-  Button,
-  Empty,
-  FileBadge,
-  Row,
-  T,
-  Toggle,
-  WardPicker,
-} from "../components/ui";
+import { Button, Empty, Row, T, Toggle } from "../components/ui";
 import { useFlow, visibleGeometry } from "../store/useFlow";
 import { colors, fonts, format, segmentLengthColor, useTheme } from "../theme";
 
-const mapModes: { label: string; icon: LucideIcon }[] = [
-  { label: "Map", icon: MapIcon },
-  { label: "Satellite", icon: Satellite },
-  { label: "Heat", icon: Flame },
-];
-type MapSheet = "heat" | "roads" | "filters" | "layers" | "";
+type MapSheet = "basemap" | "roads" | "filters" | "layers" | "";
 
 export default function SearchScreen() {
   const desktop = useDesktopLayout();
@@ -68,7 +53,6 @@ export default function SearchScreen() {
     state = useFlow(),
     params = useLocalSearchParams<{ q?: string; panel?: string }>();
   const [query, setQuery] = useState(params.q ?? ""),
-    [chosenMode, setMode] = useState("Map"),
     [basemapStatus, setBasemapStatus] = useState<BasemapStatus>("unavailable"),
     [requestedSheet, setSheetContent] =
       useState<Exclude<MapSheet, "">>("roads"),
@@ -78,17 +62,33 @@ export default function SearchScreen() {
     [lanes, setLanes] = useState(false),
     [crashes, setCrashes] = useState(false),
     [counts, setCounts] = useState(false),
-    [chosenMetric, setMetric] = useState<MapMetric>("combined"),
-    [scopeWard, setScopeWard] = useState<number | undefined>(undefined),
-    [crashYear, setCrashYear] = useState<number | undefined>(undefined),
+    [cardOpen, setCardOpen] = useState(false),
     [roadLimit, setRoadLimit] = useState(20),
     // Ward the user tapped on the map (shown in a card and outlined).
     [tappedWard, setTappedWard] = useState<number | undefined>(undefined);
+  const scopeWard = state.mapScopeWard,
+    crashYear = state.mapCrashYear;
   const touring = state.tour !== null;
-  const mapView = getTourStep(state.tour)?.mapView;
-  const mode = mapView?.mode ?? chosenMode;
-  const sheet = desktop && requestedSheet === "heat" ? "roads" : requestedSheet;
-  const metric = mapView?.metric ?? chosenMetric;
+  const tourStep = getTourStep(state.tour);
+  const mapView = tourStep?.mapView;
+  // Tour steps about the map card show it open.
+  const cardExpanded = cardOpen || tourStep?.target === "map-summary";
+  const sheet = requestedSheet;
+  // A tour step can show layers for its explanation without saving them.
+  const layers = useMemo(
+    () =>
+      visibleLayers(state.mapLayerOrder, {
+        ...state.mapLayersVisible,
+        ...mapView?.layers,
+      }),
+    [state.mapLayerOrder, state.mapLayersVisible, mapView?.layers],
+  );
+  const basemap =
+    state.basemap === "satellite"
+      ? state.basemapLabels
+        ? "hybrid"
+        : "satellite"
+      : "roadmap";
   const searchTarget = useTourTarget("map-search");
   const modesTarget = useTourTarget("map-modes");
   const toolsTarget = useTourTarget("map-tools");
@@ -130,11 +130,13 @@ export default function SearchScreen() {
     if (params.panel === "layers") {
       // Present the sheet after the map screen has mounted and received focus.
       const frame = requestAnimationFrame(() => {
-        setSheet("layers");
+        openLayers();
         router.setParams({ panel: undefined });
       });
       return () => cancelAnimationFrame(frame);
     }
+    // openLayers only reads the layout, which is stable for a mount.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [params.panel, setSheet]);
   useFocusEffect(
     useCallback(() => {
@@ -155,6 +157,11 @@ export default function SearchScreen() {
       return () => subscription.remove();
     }, [sheetOpen]),
   );
+  // Data layers is a sheet on desktop and its own page on phones.
+  function openLayers() {
+    if (desktop) setSheet("layers");
+    else navigateAfterClose(() => router.push("/layers"));
+  }
   function navigateAfterClose(action: () => void) {
     if (!sheetOpen) {
       action();
@@ -163,6 +170,7 @@ export default function SearchScreen() {
     pendingNavigation.current = action;
     setSheet("");
   }
+  const wardOnly = wardFilter ? scopeWard : undefined;
   const searchable = useMemo(() => {
     const visibleSegments = new Set(
       visibleGeometry(state.files).segments.map((s) => s.id),
@@ -171,21 +179,13 @@ export default function SearchScreen() {
       state.results?.segments.filter(
         (s) =>
           visibleSegments.has(s.id) &&
-          (!wardFilter || s.wards.includes(state.ward)) &&
+          (!wardOnly || s.wards.includes(wardOnly)) &&
           (!lanes || (s.lanes ?? 0) >= 4) &&
           (!crashes || (s.collisions ?? 0) > 0) &&
           (!counts || s.maxVolume !== undefined),
       ) ?? []
     );
-  }, [
-    state.files,
-    state.results,
-    state.ward,
-    wardFilter,
-    lanes,
-    crashes,
-    counts,
-  ]);
+  }, [state.files, state.results, wardOnly, lanes, crashes, counts]);
   const matching = useMemo(() => {
     const term = query.trim().toLowerCase();
     const ward = /^ward\s*([1-8])$/.exec(term);
@@ -197,21 +197,10 @@ export default function SearchScreen() {
   }, [searchable, query]);
   const crashSegmentIds = useMemo(
     () =>
-      wardFilter || lanes || crashes || counts || query
+      wardOnly || lanes || crashes || counts || query
         ? new Set(matching.map((s) => s.id))
         : undefined,
-    [wardFilter, lanes, crashes, counts, query, matching],
-  );
-  const hotspotYears = useMemo(
-    () =>
-      [
-        ...new Set(
-          visibleCrashPoints(state.files)
-            .map((p) => p.year)
-            .filter((y) => y > 0),
-        ),
-      ].sort((a, b) => a - b),
-    [state.files],
+    [wardOnly, lanes, crashes, counts, query, matching],
   );
   const crashCount = useMemo(
     () =>
@@ -221,12 +210,16 @@ export default function SearchScreen() {
     [state.files, crashSegmentIds, crashYear],
   );
   const filters = [
-    {
-      label: "Selected ward",
-      chip: `Ward ${state.ward}`,
-      value: wardFilter,
-      set: setWardFilter,
-    },
+    ...(scopeWard !== undefined
+      ? [
+          {
+            label: `Ward ${scopeWard} only`,
+            chip: `Ward ${scopeWard}`,
+            value: wardFilter,
+            set: setWardFilter,
+          },
+        ]
+      : []),
     { label: "4+ lanes", chip: "4+ lanes", value: lanes, set: setLanes },
     {
       label: "Has collisions",
@@ -257,8 +250,8 @@ export default function SearchScreen() {
         zoom={zoom}
         desktop={desktop}
         onBasemapStatus={setBasemapStatus}
-        mode={mode}
-        metric={metric}
+        basemap={basemap}
+        layers={layers}
         scopeWard={scopeWard}
         crashYear={crashYear}
         crashSegmentIds={crashSegmentIds}
@@ -273,25 +266,47 @@ export default function SearchScreen() {
       />
     </View>
   );
-  const saveLayerOrder = useCallback((mapLayerOrder: MapLayer[]) => {
-    useFlow.getState().set({ mapLayerOrder });
-  }, []);
+  const basemapButton = (
+    <Pressable
+      {...modesTarget}
+      accessibilityRole="button"
+      accessibilityLabel={`Basemap settings, ${state.basemap === "satellite" ? "Satellite" : "Map"}`}
+      onPress={() => setSheet("basemap")}
+      style={({ pressed }) => ({
+        width: 50,
+        height: 50,
+        borderRadius: 14,
+        borderWidth: 2,
+        borderColor: c.surface,
+        overflow: "hidden",
+        boxShadow: c.floatShadow,
+        opacity: pressed ? 0.8 : 1,
+      })}
+    >
+      <BasemapThumb
+        // Show the type you'd switch to, like a map app's basemap button.
+        type={state.basemap === "satellite" ? "map" : "satellite"}
+        size={46}
+      />
+    </Pressable>
+  );
   const mapTools = (
     <View
       {...toolsTarget}
       style={{
         width: 48,
-        ...(desktop && { position: "absolute", top: 16, right: 16 }),
         borderRadius: 24,
         backgroundColor: c.surface,
         overflow: "hidden",
         ...float,
       }}
     >
+      <StackButton icon={Layers} label="Data layers" onPress={openLayers} />
       <StackButton
-        icon={Layers}
-        label="Files on this map"
-        onPress={() => setSheet("layers")}
+        icon={SlidersHorizontal}
+        label="Map filters"
+        badge={activeFilters.length}
+        onPress={() => setSheet("filters")}
       />
       <StackButton
         icon={RotateCcw}
@@ -299,7 +314,12 @@ export default function SearchScreen() {
         onPress={() => {
           setZoom(1);
           setQuery("");
-          state.set({ selected: null, mapReset: state.mapReset + 1 });
+          state.set({
+            selected: null,
+            mapReset: state.mapReset + 1,
+            mapScopeWard: undefined,
+            mapCrashYear: undefined,
+          });
         }}
       />
       <View
@@ -364,58 +384,11 @@ export default function SearchScreen() {
             if (term) setSheet("roads");
           }}
         />
-        <RoundButton
-          icon={SlidersHorizontal}
-          label="Map filters"
-          badge={activeFilters.length}
-          onPress={() => setSheet("filters")}
-        />
+        {!desktop && basemapButton}
       </View>
-      <View
-        {...modesTarget}
-        style={{
-          flexDirection: "row",
-          padding: 4,
-          borderRadius: 999,
-          backgroundColor: c.surface,
-          ...float,
-        }}
-      >
-        {mapModes.map(({ label, icon: Icon }) => {
-          const active = label === mode;
-          return (
-            <Pressable
-              key={label}
-              onPress={() => setMode(label)}
-              accessibilityRole="button"
-              accessibilityLabel={`${label} view`}
-              accessibilityState={{ selected: active }}
-              style={{
-                flex: 1,
-                minHeight: 44,
-                flexDirection: "row",
-                gap: 6,
-                alignItems: "center",
-                justifyContent: "center",
-                borderRadius: 999,
-                backgroundColor: active ? c.primary : "transparent",
-              }}
-            >
-              <Icon size={17} color={active ? c.onPrimary : c.muted} />
-              <T
-                size={13}
-                style={{
-                  fontFamily: fonts.bold,
-                  color: active ? c.onPrimary : c.muted,
-                }}
-              >
-                {label}
-              </T>
-            </Pressable>
-          );
-        })}
-      </View>
-      <DatasetBanner style={{ borderRadius: 14, boxShadow: c.floatShadow }} />
+      {desktop && (
+        <DatasetBanner style={{ borderRadius: 14, boxShadow: c.floatShadow }} />
+      )}
       {tappedWard !== undefined && (
         <WardCard
           ward={tappedWard}
@@ -442,106 +415,64 @@ export default function SearchScreen() {
             />
           ))}
         </View>
-        {!desktop && mapTools}
+        {!desktop && (
+          <View pointerEvents="box-none" style={{ alignItems: "flex-end" }}>
+            {mapTools}
+          </View>
+        )}
       </View>
     </View>
   );
-  const compactHeat = !desktop && mode === "Heat";
-  const heatLabel = mapMetrics.find((item) => item.key === metric)?.label;
-  const heatScope =
-    metric === "crashes"
-      ? (crashYear ?? "All years")
-      : scopeWard
-        ? `Ward ${scopeWard}`
-        : "Citywide";
-  const heatControls = (
-    <HeatPanel
-      metric={metric}
-      onMetric={setMetric}
-      scopeWard={scopeWard}
-      onScopeWard={setScopeWard}
-      crashYear={crashYear}
-      onCrashYear={setCrashYear}
-      segments={matching}
-      crashCount={crashCount}
-      hotspotYears={hotspotYears}
-      onSelect={(id) => {
-        state.set({ selected: id });
-        setSheet("roads");
-      }}
-    />
-  );
-  const mapSummary = (
-    <View
-      {...summaryTarget}
-      style={{
-        ...(!desktop && {
-          position: "absolute",
-          bottom: insets.bottom + (basemapStatus === "ready" ? 32 : 16),
-          ...gutter,
-        }),
-        backgroundColor: c.surface,
-        borderRadius: 24,
-        padding: compactHeat ? 6 : 16,
-        gap: 12,
-        ...float,
-      }}
-    >
-      {mode === "Heat" ? (
-        desktop ? (
-          heatControls
-        ) : (
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel={`Heat map settings, ${heatLabel}, ${heatScope}`}
-            onPress={() => setSheet("heat")}
-            style={({ pressed }) => ({
-              minHeight: 44,
-              flexDirection: "row",
-              alignItems: "center",
-              gap: 12,
-              paddingHorizontal: 12,
-              opacity: pressed ? 0.75 : 1,
-            })}
-          >
-            <Flame size={20} color={c.primaryText} />
-            <View style={{ flex: 1 }}>
-              <T heading size={16}>
-                {heatLabel}
-              </T>
-              <T muted size={12}>
-                {heatScope}
-              </T>
-            </View>
-            <T
-              size={13}
-              style={{ color: c.primaryText, fontFamily: fonts.bold }}
-            >
-              Settings
-            </T>
-            <SlidersHorizontal size={17} color={c.primaryText} />
-          </Pressable>
-        )
-      ) : (
-        <View style={{ gap: 6 }}>
-          <T heading size={15}>
+  const summaryBody = (
+    <>
+      <View style={{ gap: 8 }}>
+        <Row>
+          <T heading size={15} style={{ flex: 1 }}>
             {matching.length
               ? `${matching.length.toLocaleString()} road segment${matching.length === 1 ? "" : "s"}`
               : "Road segments"}
           </T>
-          <View
-            style={{
-              flexDirection: "row",
-              flexWrap: "wrap",
-              alignItems: "center",
-              gap: 12,
-            }}
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Open data layers"
+            onPress={openLayers}
+            style={{ minHeight: 32, justifyContent: "center" }}
           >
-            <SegmentLengthLegend />
-            <WardSwatches />
-          </View>
-        </View>
-      )}
+            <T
+              size={13}
+              style={{ fontFamily: fonts.bold, color: c.primaryText }}
+            >
+              Layers
+            </T>
+          </Pressable>
+          {!desktop && (
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Collapse map details"
+              onPress={() => setCardOpen(false)}
+              style={({ pressed }) => ({
+                width: 36,
+                height: 36,
+                marginLeft: 4,
+                borderRadius: 18,
+                alignItems: "center",
+                justifyContent: "center",
+                backgroundColor: c.dataSurface,
+                opacity: pressed ? 0.7 : 1,
+              })}
+            >
+              <ChevronDown size={18} color={c.ink} />
+            </Pressable>
+          )}
+        </Row>
+        {!desktop && <DatasetBanner />}
+        <MapLegend
+          layers={layers}
+          segments={matching}
+          scopeWard={scopeWard}
+          crashCount={crashCount}
+        />
+      </View>
       {!matching.length && (
         <T muted size={12}>
           {state.results?.segments.length
@@ -549,75 +480,102 @@ export default function SearchScreen() {
             : "Import road segments to display your analysis."}
         </T>
       )}
-      {!compactHeat &&
-        (selected ? (
-          <Pressable
-            onPress={() => setSheet("roads")}
-            accessibilityRole="button"
-            accessibilityLabel={`View ${selected.road} details`}
-            style={({ pressed }) => ({
-              flexDirection: "row",
-              alignItems: "center",
-              gap: 12,
-              padding: 12,
-              borderRadius: 18,
-              backgroundColor: c.dataSurface,
-              opacity: pressed ? 0.75 : 1,
-            })}
-          >
-            <View
-              style={{
-                width: 6,
-                alignSelf: "stretch",
-                borderRadius: 3,
-                backgroundColor: c.primary,
-              }}
-            />
-            <View style={{ flex: 1 }}>
-              <T heading size={16} numberOfLines={1}>
-                {selected.road}
-              </T>
-              <T muted size={11}>
-                {[
-                  `Segment ${selected.index} of ${selected.of}`,
-                  wardLabel(selected),
-                  selected.vc != null && `V/C ${format(selected.vc, 2)}`,
-                  selected.collisions != null &&
-                    `${format(selected.collisions)} crashes`,
-                ]
-                  .filter(Boolean)
-                  .join(" · ")}
-              </T>
-            </View>
-            <ChevronRight size={20} color={c.muted} />
-          </Pressable>
-        ) : (
-          <Button
-            label="Explore road segments"
-            onPress={() => setSheet("roads")}
+      {selected ? (
+        <Pressable
+          onPress={() => setSheet("roads")}
+          accessibilityRole="button"
+          accessibilityLabel={`View ${selected.road} details`}
+          style={({ pressed }) => ({
+            flexDirection: "row",
+            alignItems: "center",
+            gap: 12,
+            padding: 12,
+            borderRadius: 18,
+            backgroundColor: c.dataSurface,
+            opacity: pressed ? 0.75 : 1,
+          })}
+        >
+          <View
+            style={{
+              width: 6,
+              alignSelf: "stretch",
+              borderRadius: 3,
+              backgroundColor: c.primary,
+            }}
           />
-        ))}
+          <View style={{ flex: 1 }}>
+            <T heading size={16} numberOfLines={1}>
+              {selected.road}
+            </T>
+            <T muted size={11}>
+              {[
+                `Segment ${selected.index} of ${selected.of}`,
+                wardLabel(selected),
+                selected.vc != null && `V/C ${format(selected.vc, 2)}`,
+                selected.collisions != null &&
+                  `${format(selected.collisions)} crashes`,
+              ]
+                .filter(Boolean)
+                .join(" · ")}
+            </T>
+          </View>
+          <ChevronRight size={20} color={c.muted} />
+        </Pressable>
+      ) : (
+        <Button
+          label="Explore road segments"
+          onPress={() => setSheet("roads")}
+        />
+      )}
+    </>
+  );
+  const mapSummary = desktop ? (
+    <View
+      {...summaryTarget}
+      style={{
+        backgroundColor: c.surface,
+        borderRadius: 24,
+        padding: 16,
+        gap: 12,
+        ...float,
+      }}
+    >
+      {summaryBody}
+    </View>
+  ) : (
+    <View
+      {...summaryTarget}
+      pointerEvents="box-none"
+      style={{
+        position: "absolute",
+        bottom: insets.bottom + (basemapStatus === "ready" ? 32 : 16),
+        ...gutter,
+        alignItems: "flex-end",
+      }}
+    >
+      <CollapsibleCard
+        open={cardExpanded}
+        onOpen={() => setCardOpen(true)}
+        label={selected ? selected.road : "Map details"}
+        selected={Boolean(selected)}
+      >
+        {summaryBody}
+      </CollapsibleCard>
     </View>
   );
   const panelTitle =
-    sheet === "heat"
-      ? "Heat map settings"
+    sheet === "basemap"
+      ? "Basemap settings"
       : sheet === "filters"
         ? "Filter the map"
         : sheet === "layers"
-          ? "Files on this map"
+          ? "Data layers"
           : (selected?.road ?? "Road segments");
   const panel =
-    sheet === "heat" ? (
-      <>
-        {heatControls}
-        <Button
-          label={
-            selected ? `View ${selected.road} details` : "Explore road segments"
-          }
-          onPress={() => setSheet("roads")}
-        />
-      </>
+    sheet === "basemap" ? (
+      <BasemapSettings
+        status={Platform.OS === "web" ? basemapStatus : "ready"}
+      />
     ) : sheet === "roads" ? (
       selected ? (
         <>
@@ -827,8 +785,6 @@ export default function SearchScreen() {
       )
     ) : sheet === "filters" ? (
       <>
-        <SectionLabel>Ward</SectionLabel>
-        <WardPicker />
         <SectionLabel>Show only</SectionLabel>
         <View
           style={{
@@ -846,11 +802,7 @@ export default function SearchScreen() {
                 borderColor: c.divider,
               }}
             >
-              <T size={14}>
-                {f.label === "Selected ward"
-                  ? `Ward ${state.ward} only`
-                  : f.label}
-              </T>
+              <T size={14}>{f.label}</T>
               <Toggle
                 accessibilityLabel={f.label}
                 value={f.value}
@@ -859,6 +811,12 @@ export default function SearchScreen() {
             </Row>
           ))}
         </View>
+        {scopeWard === undefined && (
+          <T muted size={12}>
+            To show one ward’s roads, focus a ward under Data layers › Ward
+            boundaries.
+          </T>
+        )}
         <Row style={{ gap: 10 }}>
           <Button
             outline
@@ -875,88 +833,15 @@ export default function SearchScreen() {
         </Row>
       </>
     ) : (
-      <>
-        {desktop && (
-          <MapLayerOrder
-            order={state.mapLayerOrder}
-            onChange={saveLayerOrder}
-          />
-        )}
-        <Pressable
-          onPress={() => navigateAfterClose(() => router.push("/import"))}
-          accessibilityRole="button"
-          accessibilityLabel="Add new data"
-          style={({ pressed }) => ({
-            alignItems: "center",
-            gap: 6,
-            paddingVertical: 20,
-            borderRadius: 22,
-            borderWidth: 1.5,
-            borderStyle: "dashed",
-            borderColor: c.border,
-            backgroundColor: c.dataSurface,
-            opacity: pressed ? 0.7 : 1,
-          })}
-        >
-          <View
-            style={{
-              width: 44,
-              height: 44,
-              borderRadius: 14,
-              backgroundColor: c.surface,
-              alignItems: "center",
-              justifyContent: "center",
-            }}
-          >
-            <Upload size={20} color={c.ink} />
-          </View>
-          <T size={14} style={{ fontFamily: fonts.bold }}>
-            Add data files
-          </T>
-          <T muted size={12}>
-            Results CSV from the Excel tool, or map GeoJSON
-          </T>
-        </Pressable>
-        <SectionLabel>Source files</SectionLabel>
-        {state.files.length ? (
-          <View>
-            {state.files.map((f, i) => (
-              <Row
-                key={`${f.source ?? "uploaded"}:${f.name}`}
-                style={{
-                  minHeight: 64,
-                  gap: 12,
-                  borderTopWidth: i ? 1 : 0,
-                  borderColor: c.divider,
-                }}
-              >
-                <FileBadge label={f.type} />
-                <View style={{ flex: 1 }}>
-                  <T size={13} style={{ fontFamily: fonts.bold }}>
-                    {fileDisplayName(f)}
-                  </T>
-                  <T muted size={11}>
-                    {f.summary}
-                  </T>
-                </View>
-                <Toggle
-                  accessibilityLabel={`Show ${fileDisplayName(f)} source file`}
-                  value={f.visible}
-                  onValueChange={(visible) =>
-                    state.set({
-                      files: state.files.map((x) =>
-                        x === f ? { ...x, visible } : x,
-                      ),
-                    })
-                  }
-                />
-              </Row>
-            ))}
-          </View>
-        ) : (
-          <T muted>No files loaded yet.</T>
-        )}
-      </>
+      <DataLayers
+        desktop={desktop}
+        segments={matching}
+        onSelect={(id) => {
+          state.set({ selected: id });
+          setSheet("roads");
+        }}
+        onAddFiles={() => navigateAfterClose(() => router.push("/import"))}
+      />
     );
 
   const overlay = (
@@ -997,7 +882,19 @@ export default function SearchScreen() {
             }}
           >
             {map}
-            {mapTools}
+            <View
+              pointerEvents="box-none"
+              style={{
+                position: "absolute",
+                top: 16,
+                right: 16,
+                alignItems: "flex-end",
+                gap: 10,
+              }}
+            >
+              {basemapButton}
+              {mapTools}
+            </View>
           </View>
           <View style={{ width: 368, minHeight: 0, gap: 16 }}>
             <T heading size={28}>
@@ -1084,16 +981,18 @@ function StackButton({
   icon: Icon,
   label,
   onPress,
+  badge = 0,
 }: {
   icon: LucideIcon;
   label: string;
   onPress: () => void;
+  badge?: number;
 }) {
   const c = useTheme();
   return (
     <Pressable
       accessibilityRole="button"
-      accessibilityLabel={label}
+      accessibilityLabel={badge ? `${label}, ${badge} active` : label}
       onPress={onPress}
       style={({ pressed }) => ({
         height: 46,
@@ -1104,6 +1003,26 @@ function StackButton({
       })}
     >
       <Icon size={19} color={c.ink} />
+      {badge > 0 && (
+        <View
+          style={{
+            position: "absolute",
+            top: 5,
+            right: 5,
+            minWidth: 16,
+            height: 16,
+            borderRadius: 8,
+            paddingHorizontal: 3,
+            alignItems: "center",
+            justifyContent: "center",
+            backgroundColor: c.primary,
+          }}
+        >
+          <T size={9} style={{ fontFamily: fonts.bold, color: c.onPrimary }}>
+            {badge}
+          </T>
+        </View>
+      )}
     </Pressable>
   );
 }
@@ -1251,32 +1170,5 @@ function SectionLabel({ children }: { children: string }) {
     <T heading size={17}>
       {children}
     </T>
-  );
-}
-
-function WardSwatches() {
-  const c = useTheme();
-  return (
-    <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
-      <View style={{ flexDirection: "row", gap: 2 }}>
-        {c.wardFills.map((fill, index) => (
-          <View
-            key={fill}
-            style={{
-              width: 4,
-              height: 12,
-              backgroundColor: fill,
-              borderWidth: 0.5,
-              borderColor: c.wardStrokes[index],
-              borderRadius: 2,
-              opacity: c.wardFillOpacity,
-            }}
-          />
-        ))}
-      </View>
-      <T muted size={11}>
-        Wards
-      </T>
-    </View>
   );
 }

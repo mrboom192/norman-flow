@@ -30,3 +30,24 @@ export function accentText(hex: string) {
   }
   return color;
 }
+
+/** A hex (#rgb, #rrggbb) or rgb()/rgba() color with its alpha multiplied by `alpha`. */
+export function withAlpha(color: string, alpha: number) {
+  const a = Math.max(0, Math.min(1, alpha));
+  const hex = /^#([0-9a-f]{3}|[0-9a-f]{6})([0-9a-f]{2})?$/i.exec(color);
+  if (hex) {
+    const body =
+      hex[1].length === 3 ? [...hex[1]].map((ch) => ch + ch).join("") : hex[1];
+    const base = hex[2] ? parseInt(hex[2], 16) / 255 : 1;
+    return `#${body}${Math.round(base * a * 255)
+      .toString(16)
+      .padStart(2, "0")}`;
+  }
+  const rgb =
+    /^rgba?\(\s*([\d.]+)[\s,]+([\d.]+)[\s,]+([\d.]+)(?:[\s,/]+([\d.]+))?\s*\)$/i.exec(
+      color,
+    );
+  if (rgb)
+    return `rgba(${rgb[1]}, ${rgb[2]}, ${rgb[3]}, ${(rgb[4] ? Number(rgb[4]) : 1) * a})`;
+  return color;
+}

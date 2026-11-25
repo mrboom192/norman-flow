@@ -1,5 +1,5 @@
 import type { Href } from "expo-router";
-import type { MapMetric } from "../analysis/mapViews";
+import type { MapLayer } from "../analysis/mapLayers";
 import type { TourTargetId } from "../components/tourTargets";
 
 export type TourMode = "short" | "detailed";
@@ -10,7 +10,8 @@ type TourStep = {
   target: TourTargetId;
   title: string;
   body: string;
-  mapView?: { mode: "Map" | "Heat"; metric: MapMetric };
+  /** Layers to show or hide on the map during this step (not saved). */
+  mapView?: { layers: Partial<Record<MapLayer, boolean>> };
 };
 
 export const tourSteps: Record<TourMode, readonly TourStep[]> = {
@@ -31,8 +32,7 @@ export const tourSteps: Record<TourMode, readonly TourStep[]> = {
       route: "/search",
       target: "map-search",
       title: "Explore Norman’s roads",
-      body: "Search for a road or ward and select a segment on the map. Heat shows rankings or crash hotspots. Layers controls which files appear.",
-      mapView: { mode: "Map", metric: "combined" },
+      body: "Search for a road or ward and select a segment on the map. The button at the top right switches between Map and Satellite. Data layers adds rankings, crash hotspots and ward focus.",
     },
     {
       route: "/chat",
@@ -100,36 +100,33 @@ export const tourSteps: Record<TourMode, readonly TourStep[]> = {
       route: "/search",
       target: "map-search",
       title: "Find a road or ward",
-      body: "Search by street name or ward. The filter button narrows the map to the selected ward, roads with four or more lanes, roads with crashes or roads with traffic counts.",
-      mapView: { mode: "Map", metric: "combined" },
+      body: "Search by street name or ward. The filter button narrows the map to the focused ward, roads with four or more lanes, roads with crashes or roads with traffic counts.",
     },
     {
       route: "/search",
       target: "map-modes",
-      title: "Switch views and inspect the map",
-      body: "Use Map for streets or Satellite for aerial imagery when available. Select a road for its metrics and ward information, or select a ward to open its rankings.",
-      mapView: { mode: "Map", metric: "combined" },
+      title: "Change the basemap",
+      body: "The button at the top right opens Basemap settings. Choose Map for streets or Satellite for aerial imagery, with or without labels. Select a road for its metrics, or a ward to open its rankings.",
     },
     {
       route: "/search",
       target: "map-summary",
       title: "See where ranked roads are",
-      body: "Heat shows Combined, V/C or Collisions on the map. Switch between Citywide and a ward to see the rankings for that area. Use the legend to read the colors.",
-      mapView: { mode: "Heat", metric: "combined" },
+      body: "In Data layers, turn on Combined ranking, V/C ratio or Collisions to color the ranked roads. Focus a ward under Ward boundaries to see that ward’s ranks. The legend explains the colors.",
+      mapView: { layers: { combined: true } },
     },
     {
       route: "/search",
       target: "map-summary",
       title: "Explore crash hotspots",
-      body: "Hotspots shows crash density. Choose a year or turn on individual crash locations. Numbered markers identify the citywide segments with the most crashes.",
-      mapView: { mode: "Heat", metric: "crashes" },
+      body: "Turn on Crash hotspots in Data layers to see crash density. Its options choose a year or show individual crash locations. Numbered markers identify the citywide segments with the most crashes.",
+      mapView: { layers: { hotspots: true } },
     },
     {
       route: "/search",
       target: "map-tools",
       title: "Use layers, zoom and reset",
-      body: "Use plus and minus to zoom and the reset arrow to clear the map view. Layers shows or hides source files. On desktop web, it also lets you change the layer order.",
-      mapView: { mode: "Map", metric: "combined" },
+      body: "Data layers turns layers on or off and drags them into the order they draw. The filter button narrows the roads. Use plus and minus to zoom and the reset arrow to clear the map view.",
     },
     {
       route: "/chat",

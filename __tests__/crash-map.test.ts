@@ -17,7 +17,14 @@ import {
   visibleCrashPoints,
 } from "../src/analysis/crashMap";
 import { combine } from "../src/store/useFlow";
-import { defaultMapLayerOrder, moveMapLayer } from "../src/analysis/mapLayers";
+import {
+  defaultMapLayerOrder,
+  defaultMapLayersVisible,
+  moveMapLayer,
+  normalizeLayerOrder,
+  normalizeLayersVisible,
+  visibleLayers,
+} from "../src/analysis/mapLayers";
 import { runPipeline } from "../src/analysis/pipeline";
 import { emptyInputs, type CrashPoint } from "../src/analysis/types";
 
@@ -51,13 +58,58 @@ const file = (data = emptyInputs(), source = "base", visible = true) => ({
   visible,
 });
 
-it("defaults to hotspots above the roads and can move a layer anywhere in the stack", () => {
+it("defaults to hotspots and rankings above the roads and can move a layer anywhere in the stack", () => {
   const order = [...defaultMapLayerOrder];
-  expect(order).toEqual(["hotspots", "segments", "wards"]);
-  expect(moveMapLayer(order, 0, 2)).toEqual(["segments", "wards", "hotspots"]);
-  expect(moveMapLayer(order, 2, -1)).toEqual(["wards", "hotspots", "segments"]);
+  expect(order).toEqual([
+    "hotspots",
+    "combined",
+    "vc",
+    "collisions",
+    "segments",
+    "wards",
+  ]);
+  expect(visibleLayers(order, defaultMapLayersVisible)).toEqual([
+    "segments",
+    "wards",
+  ]);
+  expect(moveMapLayer(order, 0, 5)).toEqual([
+    "combined",
+    "vc",
+    "collisions",
+    "segments",
+    "wards",
+    "hotspots",
+  ]);
+  expect(moveMapLayer(order, 5, -1)[0]).toBe("wards");
   expect(moveMapLayer(order, 0, -1)).toBe(order);
   expect(order).toEqual(defaultMapLayerOrder);
+});
+
+it("upgrades a saved three-layer order and drops unknown layers", () => {
+  expect(normalizeLayerOrder(["wards", "segments", "hotspots"])).toEqual([
+    "wards",
+    "combined",
+    "vc",
+    "collisions",
+    "segments",
+    "hotspots",
+  ]);
+  expect(normalizeLayerOrder(["heat", "wards", "wards"])).toEqual([
+    "hotspots",
+    "combined",
+    "vc",
+    "collisions",
+    "segments",
+    "wards",
+  ]);
+  expect(normalizeLayerOrder(undefined)).toEqual(defaultMapLayerOrder);
+  expect(
+    normalizeLayersVisible({ vc: true, wards: false, bogus: true }),
+  ).toEqual({
+    ...defaultMapLayersVisible,
+    vc: true,
+    wards: false,
+  });
 });
 
 it("loads all 21,153 unique observed points in lat/lon order, including off-study crashes", () => {

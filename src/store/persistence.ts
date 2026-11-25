@@ -202,13 +202,27 @@ export function createFlowStorage<S>(
         ).catch(() => {});
     }
   }
+  let queued: { key: string; value: StorageValue<S> } | undefined;
   const adapter: PersistStorage<S> & { flush: () => Promise<void> } = {
     getItem: read,
     setItem: (key, value) => {
       // Zustand invokes persistence even for nonpersisted fields such as selected.
       if (sameSnapshot(lastSnapshot, value)) return tail;
       lastSnapshot = value;
-      const job = tail.catch(() => {}).then(() => write(key, value));
+      // Rapid updates (a slider drag) replace a write that hasn't started yet,
+      // so only the latest snapshot is encoded.
+      if (queued?.key === key) {
+        queued.value = value;
+        return tail;
+      }
+      const entry = { key, value };
+      queued = entry;
+      const job = tail
+        .catch(() => {})
+        .then(() => {
+          if (queued === entry) queued = undefined;
+          return write(entry.key, entry.value);
+        });
       tail = job;
       // Attach a handler even for fire-and-forget store updates. Import explicitly
       // awaits flush() so disk errors can be shown in the import screen.
@@ -219,6 +233,7 @@ export function createFlowStorage<S>(
     },
     removeItem: (key) => {
       lastSnapshot = undefined;
+      queued = undefined;
       const job = tail
         .catch(() => {})
         .then(async () => {

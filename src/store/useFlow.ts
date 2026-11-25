@@ -15,7 +15,16 @@ import {
 import { defaultSettings, runPipeline } from "../analysis/pipeline";
 import { officialPresetId } from "../analysis/capacity";
 import { defaultPrimary } from "../theme/palette";
-import { defaultMapLayerOrder, type MapLayer } from "../analysis/mapLayers";
+import {
+  type BasemapType,
+  type LayerStyle,
+  normalizeLayerStyles,
+  defaultMapLayerOrder,
+  defaultMapLayersVisible,
+  type MapLayer,
+  normalizeLayerOrder,
+  normalizeLayersVisible,
+} from "../analysis/mapLayers";
 export type DatasetFile = {
   /** Older persisted files without a source are user uploads. */
   source?: "base" | "uploaded";
@@ -121,7 +130,18 @@ type State = {
   selected: string | null;
   mapReset: number;
   crashPointsVisible: boolean;
+  /** Data layers, front to back. */
   mapLayerOrder: MapLayer[];
+  mapLayersVisible: Record<MapLayer, boolean>;
+  /** Opacity and line thickness for each data layer. */
+  mapLayerStyles: Record<MapLayer, LayerStyle>;
+  /** Ward focus from the ward layer; undefined is citywide. Not saved. */
+  mapScopeWard: number | undefined;
+  /** Hotspot layer year filter; undefined is all years. Not saved. */
+  mapCrashYear: number | undefined;
+  basemap: BasemapType;
+  /** Street and place names over satellite imagery. */
+  basemapLabels: boolean;
   tour: ActiveTour | null;
   /**
    * One-off request from the map's "See its rank": Rankings scrolls to and
@@ -162,6 +182,10 @@ type SavedState = Pick<
   | "capacityPresets"
   | "crashPointsVisible"
   | "mapLayerOrder"
+  | "mapLayersVisible"
+  | "mapLayerStyles"
+  | "basemap"
+  | "basemapLabels"
 >;
 export const flowStorage = createFlowStorage<SavedState>(Storage, (error) => {
   useFlow.setState({
@@ -188,6 +212,12 @@ export const useFlow = create<State>()(
       mapReset: 0,
       crashPointsVisible: false,
       mapLayerOrder: [...defaultMapLayerOrder],
+      mapLayersVisible: { ...defaultMapLayersVisible },
+      mapLayerStyles: normalizeLayerStyles(undefined),
+      mapScopeWard: undefined,
+      mapCrashYear: undefined,
+      basemap: "map",
+      basemapLabels: true,
       tour: null,
       rankFocus: null,
       set,
@@ -256,6 +286,8 @@ export const useFlow = create<State>()(
           previous: null,
           selected: null,
           mapReset: get().mapReset + 1,
+          mapScopeWard: undefined,
+          mapCrashYear: undefined,
         });
       },
       savePreset: (preset) => {
@@ -347,6 +379,10 @@ export const useFlow = create<State>()(
         return {
           ...current,
           ...saved,
+          mapLayerOrder: normalizeLayerOrder(saved.mapLayerOrder),
+          mapLayersVisible: normalizeLayersVisible(saved.mapLayersVisible),
+          mapLayerStyles: normalizeLayerStyles(saved.mapLayerStyles),
+          basemap: saved.basemap === "satellite" ? "satellite" : "map",
           primary:
             !saved.primary || saved.primary.toLowerCase() === "#c2255c"
               ? defaultPrimary
@@ -370,6 +406,10 @@ export const useFlow = create<State>()(
         capacityPresets: s.capacityPresets,
         crashPointsVisible: s.crashPointsVisible,
         mapLayerOrder: s.mapLayerOrder,
+        mapLayersVisible: s.mapLayersVisible,
+        mapLayerStyles: s.mapLayerStyles,
+        basemap: s.basemap,
+        basemapLabels: s.basemapLabels,
       }),
       onRehydrateStorage: () => (_state, error) => {
         useFlow.setState({

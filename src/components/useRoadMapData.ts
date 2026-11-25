@@ -1,16 +1,20 @@
 import { useMemo } from "react";
 import { topSegmentMarkers, visibleCrashPoints } from "../analysis/crashMap";
+import { isRankLayer, type MapLayer } from "../analysis/mapLayers";
 import {
-  type MapMetric,
   rankBadges,
   rankedRows,
   segmentStyle,
+  type SegmentStyle,
   valueRange,
 } from "../analysis/mapViews";
-import type { SegmentResult } from "../analysis/types";
+import type { RankKind, SegmentResult } from "../analysis/types";
 import { useFlow, visibleGeometry } from "../store/useFlow";
 import { useTheme } from "../theme";
 import type { BasemapStatus } from "./GoogleBasemap";
+
+/** Google basemap type: plain map, imagery, or imagery with labels. */
+export type BasemapView = "roadmap" | "satellite" | "hybrid";
 
 export type MapProps = {
   preview?: boolean;
@@ -19,10 +23,10 @@ export type MapProps = {
   onSelectSegment?: (id: string) => void;
   segments?: SegmentResult[];
   zoom?: number;
-  mode?: string;
-  /** Heat-mode view: a ranking metric or the crash hotspot layer. */
-  metric?: MapMetric;
-  /** Ward to focus in Heat mode; undefined is citywide. */
+  basemap?: BasemapView;
+  /** Visible data layers, front to back. Defaults to roads over wards. */
+  layers?: readonly MapLayer[];
+  /** Ward focus from the ward layer: ranks within it and fades the others. */
   scopeWard?: number;
   /** Show only crashes from this year on the hotspot layer. */
   crashYear?: number;
@@ -34,11 +38,13 @@ export type MapProps = {
   /** Ward to outline after a tap. */
   selectedWard?: number;
 };
+
+export const previewLayers: readonly MapLayer[] = ["segments", "wards"];
+
 export function useRoadMapData({
   segments,
   preview,
-  mode,
-  metric = "combined",
+  layers = previewLayers,
   scopeWard,
   crashYear,
   crashSegmentIds,
@@ -47,11 +53,13 @@ export function useRoadMapData({
   const files = useFlow((s) => s.files);
   const results = useFlow((s) => s.results);
   const data = useMemo(() => visibleGeometry(files), [files]);
+  const shown = preview ? previewLayers : layers;
   const roads = useMemo(() => {
     if (segments) return segments;
     const visible = new Set(data.segments.map((s) => s.id));
     return results?.segments.filter((s) => visible.has(s.id)) ?? [];
   }, [segments, results, data.segments]);
+  const crashHeat = shown.includes("hotspots");
   const crashPoints = useMemo(
     () =>
       visibleCrashPoints(files, crashSegmentIds).filter(
@@ -60,41 +68,52 @@ export function useRoadMapData({
     [files, crashSegmentIds, crashYear],
   );
   const markers = useMemo(
-    () => topSegmentMarkers(files, roads),
-    [files, roads],
+    () => (crashHeat ? topSegmentMarkers(files, roads) : []),
+    [crashHeat, files, roads],
   );
-  const heatMode = !preview && mode === "Heat";
-  const crashHeat = heatMode && metric === "crashes";
-  const rankView = heatMode && metric !== "crashes" ? metric : undefined;
-  // Ranked roads for this view, keyed by segment; recomputed from the loaded
-  // results, so a new import recolors the map immediately.
+  const rankKey = shown.filter(isRankLayer).join(",");
+  // Ranked roads for each visible ranking layer, keyed by segment; recomputed
+  // from the loaded results, so a new import recolors the map immediately.
   const ranked = useMemo(() => {
-    if (!rankView) return undefined;
     const visible = new Set(roads.map((s) => s.id));
-    return rankedRows(results, rankView, scopeWard).filter((r) =>
-      visible.has(r.id),
-    );
-  }, [rankView, roads, results, scopeWard]);
-  const styles = useMemo(() => {
-    if (!ranked || !rankView) return undefined;
-    const range = valueRange(ranked);
-    return new Map(
-      ranked.map((r) => [r.id, segmentStyle(r, rankView, range, c)]),
-    );
-  }, [ranked, rankView, c]);
+    const kinds = (rankKey ? rankKey.split(",") : []) as RankKind[];
+    return kinds.map((kind) => {
+      const rows = rankedRows(results, kind, scopeWard).filter((r) =>
+        visible.has(r.id),
+      );
+      const range = valueRange(rows);
+      return {
+        kind,
+        rows,
+        styles: new Map<string, SegmentStyle>(
+          rows.map((r) => [r.id, segmentStyle(r, kind, range, c)]),
+        ),
+      };
+    });
+  }, [rankKey, roads, results, scopeWard, c]);
+  const rankStyles = useMemo(
+    () =>
+      Object.fromEntries(ranked.map((r) => [r.kind, r.styles])) as Partial<
+        Record<RankKind, Map<string, SegmentStyle>>
+      >,
+    [ranked],
+  );
+  // Numbered badges follow the frontmost ranking layer in a ward focus.
+  const front = ranked[0];
   const badges = useMemo(
-    () => (ranked && scopeWard !== undefined ? rankBadges(ranked) : []),
-    [ranked, scopeWard],
+    () => (front && scopeWard !== undefined ? rankBadges(front.rows) : []),
+    [front, scopeWard],
   );
   return {
     c,
     data,
     roads,
+    shown,
     crashPoints,
     markers,
     crashHeat,
-    rankView,
-    styles,
+    rankStyles,
+    badgeKind: front?.kind,
     badges,
   };
 }

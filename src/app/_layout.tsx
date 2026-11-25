@@ -90,6 +90,7 @@ export default function Layout() {
           >
             <Stack.Screen name="(tabs)" />
             <Stack.Screen name="search" />
+            <Stack.Screen name="layers" />
             <Stack.Screen name="welcome" options={{ presentation: "modal" }} />
             <Stack.Screen name="import" options={{ presentation: "modal" }} />
             <Stack.Screen
