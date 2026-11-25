@@ -59,7 +59,6 @@ const mapModes: { label: string; icon: LucideIcon }[] = [
   { label: "Satellite", icon: Satellite },
   { label: "Heat", icon: Flame },
 ];
-const snapPoints = ["45%", "90%"];
 type MapSheet = "heat" | "roads" | "filters" | "layers" | "";
 
 export default function SearchScreen() {
@@ -115,17 +114,11 @@ export default function SearchScreen() {
     "map-summary",
     desktop ? panelScroll : undefined,
   );
-  const panelY = useRef(0);
   const pendingNavigation = useRef<(() => void) | null>(null);
-  const setSheet = useCallback(
-    (next: MapSheet) => {
-      if (next) setSheetContent(next);
-      setSheetOpen(Boolean(next));
-      if (desktop && next)
-        panelScroll.current?.scrollTo({ y: panelY.current, animated: true });
-    },
-    [desktop],
-  );
+  const setSheet = useCallback((next: MapSheet) => {
+    if (next) setSheetContent(next);
+    setSheetOpen(Boolean(next));
+  }, []);
   // Open details for selections from the map or Rankings, only while Search is focused.
   useFocusEffect(
     useCallback(() => {
@@ -163,7 +156,7 @@ export default function SearchScreen() {
     }, [sheetOpen]),
   );
   function navigateAfterClose(action: () => void) {
-    if (desktop || !sheetOpen) {
+    if (!sheetOpen) {
       action();
       return;
     }
@@ -556,8 +549,7 @@ export default function SearchScreen() {
             : "Import road segments to display your analysis."}
         </T>
       )}
-      {!desktop &&
-        !compactHeat &&
+      {!compactHeat &&
         (selected ? (
           <Pressable
             onPress={() => setSheet("roads")}
@@ -877,7 +869,7 @@ export default function SearchScreen() {
           />
           <Button
             label="Show results"
-            onPress={() => setSheet(desktop ? "roads" : "")}
+            onPress={() => setSheet("")}
             style={{ flex: 1 }}
           />
         </Row>
@@ -967,10 +959,25 @@ export default function SearchScreen() {
       </>
     );
 
+  const overlay = (
+    <Sheet
+      visible={sheetOpen}
+      title={panelTitle}
+      onClose={() => setSheet("")}
+      onDismiss={() => {
+        const navigate = pendingNavigation.current;
+        pendingNavigation.current = null;
+        navigate?.();
+      }}
+    >
+      {panel}
+    </Sheet>
+  );
   if (desktop) {
     return (
       <View style={{ flex: 1, backgroundColor: c.background }}>
         <DesktopNav />
+        {overlay}
         <View
           style={{
             flex: 1,
@@ -1004,31 +1011,6 @@ export default function SearchScreen() {
               keyboardShouldPersistTaps="handled"
             >
               {mapSummary}
-              <View
-                onLayout={(event) => {
-                  panelY.current = event.nativeEvent.layout.y;
-                }}
-                style={{
-                  backgroundColor: c.surface,
-                  borderRadius: 24,
-                  padding: 16,
-                  gap: 12,
-                }}
-              >
-                <Row>
-                  <T heading size={20} style={{ flex: 1 }}>
-                    {panelTitle}
-                  </T>
-                  {sheet !== "roads" && (
-                    <RoundButton
-                      icon={X}
-                      label="Back to roads"
-                      onPress={() => setSheet("roads")}
-                    />
-                  )}
-                </Row>
-                {panel}
-              </View>
             </ScrollView>
           </View>
         </View>
@@ -1040,19 +1022,7 @@ export default function SearchScreen() {
       {map}
       {controls}
       {mapSummary}
-      <Sheet
-        visible={sheetOpen}
-        snapPoints={snapPoints}
-        title={panelTitle}
-        onClose={() => setSheet("")}
-        onDismiss={() => {
-          const navigate = pendingNavigation.current;
-          pendingNavigation.current = null;
-          navigate?.();
-        }}
-      >
-        {panel}
-      </Sheet>
+      {overlay}
     </View>
   );
 }

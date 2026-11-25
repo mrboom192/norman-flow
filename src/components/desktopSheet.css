@@ -1,0 +1,23 @@
+.desktop-sheet-dialog {
+  position: fixed;
+  inset: 0;
+  margin: auto;
+  width: min(560px, calc(100vw - 48px));
+  max-height: calc(100dvh - 64px);
+  box-sizing: border-box;
+  border: 0;
+  border-radius: 22px;
+  padding: 18px 0 0;
+  overflow: hidden;
+}
+.desktop-sheet-dialog[open] {
+  display: flex;
+  flex-direction: column;
+}
+.desktop-sheet-dialog::backdrop {
+  background: rgb(0 0 0 / 45%);
+}
+.desktop-sheet-content {
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
