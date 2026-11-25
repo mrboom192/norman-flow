@@ -37,6 +37,7 @@ import { MapLayerOrder } from "../components/MapLayerOrder";
 import { type MapLayer } from "../analysis/mapLayers";
 import { HeatPanel } from "../components/HeatPanel";
 import { mapMetrics, type MapMetric } from "../analysis/mapViews";
+import { RoadSearch } from "../components/RoadSearch";
 import { RoadMap } from "../components/RoadMap";
 import type { BasemapStatus } from "../components/GoogleBasemap";
 import { SegmentLengthLegend } from "../components/SegmentLengthLegend";
@@ -45,7 +46,6 @@ import {
   Button,
   Empty,
   FileBadge,
-  Input,
   Row,
   T,
   Toggle,
@@ -170,7 +170,7 @@ export default function SearchScreen() {
     pendingNavigation.current = action;
     setSheet("");
   }
-  const matching = useMemo(() => {
+  const searchable = useMemo(() => {
     const visibleSegments = new Set(
       visibleGeometry(state.files).segments.map((s) => s.id),
     );
@@ -181,11 +181,7 @@ export default function SearchScreen() {
           (!wardFilter || s.wards.includes(state.ward)) &&
           (!lanes || (s.lanes ?? 0) >= 4) &&
           (!crashes || (s.collisions ?? 0) > 0) &&
-          (!counts || s.maxVolume !== undefined) &&
-          (!query ||
-            s.road.toLowerCase().includes(query.toLowerCase()) ||
-            (/^ward\s*[1-8]$/i.test(query) &&
-              s.wards.includes(Number(query.match(/[1-8]/)?.[0])))),
+          (!counts || s.maxVolume !== undefined),
       ) ?? []
     );
   }, [
@@ -196,8 +192,16 @@ export default function SearchScreen() {
     lanes,
     crashes,
     counts,
-    query,
   ]);
+  const matching = useMemo(() => {
+    const term = query.trim().toLowerCase();
+    const ward = /^ward\s*([1-8])$/.exec(term);
+    return searchable.filter(
+      (segment) =>
+        segment.road.toLowerCase().includes(term) ||
+        (ward && segment.wards.includes(Number(ward[1]))),
+    );
+  }, [searchable, query]);
   const crashSegmentIds = useMemo(
     () =>
       wardFilter || lanes || crashes || counts || query
@@ -334,11 +338,17 @@ export default function SearchScreen() {
           ...gutter,
         }),
         gap: 10,
+        zIndex: 10,
       }}
     >
       <View
         {...searchTarget}
-        style={{ flexDirection: "row", alignItems: "center", gap: 10 }}
+        style={{
+          flexDirection: "row",
+          alignItems: "center",
+          gap: 10,
+          zIndex: 2,
+        }}
       >
         {!desktop && (
           <RoundButton
@@ -350,12 +360,16 @@ export default function SearchScreen() {
             }}
           />
         )}
-        <Input
-          search
+        <RoadSearch
           value={query}
-          onChangeText={setQuery}
-          placeholder="Find a street or ward"
-          style={{ flex: 1, borderWidth: 0, ...float }}
+          segments={searchable}
+          onChoose={(term) => {
+            setQuery(term);
+            state.set({ selected: null });
+            setTappedWard(undefined);
+            setRoadLimit(20);
+            if (term) setSheet("roads");
+          }}
         />
         <RoundButton
           icon={SlidersHorizontal}
@@ -419,7 +433,10 @@ export default function SearchScreen() {
           }}
         />
       )}
-      <Row style={{ alignItems: "flex-start" }}>
+      <View
+        pointerEvents="box-none"
+        style={{ flexDirection: "row", alignItems: "flex-start", gap: 8 }}
+      >
         <View
           pointerEvents="box-none"
           style={{ flex: 1, flexDirection: "row", flexWrap: "wrap", gap: 6 }}
@@ -433,7 +450,7 @@ export default function SearchScreen() {
           ))}
         </View>
         {!desktop && mapTools}
-      </Row>
+      </View>
     </View>
   );
   const compactHeat = !desktop && mode === "Heat";
